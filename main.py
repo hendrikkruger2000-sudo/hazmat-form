@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import sqlite3, os
@@ -14,6 +14,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 os.makedirs("static/waybills", exist_ok=True)
 os.makedirs("static/qrcodes", exist_ok=True)
+os.makedirs("static/uploads", exist_ok=True)
 
 def init_db():
     conn = sqlite3.connect("hazmat.db")
@@ -52,11 +53,18 @@ async def form():
 @app.post("/submit")
 async def submit(request: Request):
     form = await request.form()
+    files = await request.form()
+    uploaded_files = request._form["shipment_docs"]
+
     service_type = form.get("serviceType")
-    inco_terms = form.get("inco_terms") or ""
 
     def get_field(name):
         return form.get(f"{name}_local") or form.get(f"{name}_export") or form.get(f"{name}_import")
+
+    def get_inco():
+        if service_type == "local":
+            return "DTD"
+        return form.get("inco_terms_export") or form.get("inco_terms_import") or "N/A"
 
     collection_company = get_field("collection_company")
     collection_address = get_field("collection_address")
@@ -69,6 +77,7 @@ async def submit(request: Request):
     client_reference = get_field("client_reference")
     pickup_date = get_field("pickup_date")
     client_notes = get_field("client_notes")
+    inco_terms = get_inco()
     timestamp = datetime.now().isoformat()
 
     conn = sqlite3.connect("hazmat.db")
@@ -91,6 +100,12 @@ async def submit(request: Request):
     request_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
+    # Save uploaded files
+    for file in request._form.getlist("shipment_docs"):
+        contents = await file.read()
+        with open(f"static/uploads/{reference_number}_{file.filename}", "wb") as f:
+            f.write(contents)
 
     qr_url = f"https://hazmat-collection.onrender.com/confirm/{request_id}"
     qr_img = qrcode.make(qr_url)
