@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Log Collection</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Log a Collection</h1>
+    <form action="/submit/" method="post" enctype="multipart/form-data">
+        <input type="text" name="reference" placeholder="Reference Number" required><br>
+        <input type="date" name="date" required>
+        <input type="time" name="collection_time" required>
+        <textarea name="collection_address" placeholder="Collection Address" required></textarea><br>
+        <input type="text" name="collection_contact" placeholder="Collection Contact" required><br>
+        <textarea name="delivery_address" placeholder="Delivery Address" required></textarea><br>
+        <input type="text" name="delivery_contact" placeholder="Delivery Contact" required><br>
+        <label>Delivery Type:</label>
+        <select name="delivery_type">
+            <option value="normal">Normal</option>
+            <option value="express">Express</option>
+        </select><br>
+        <label>Quoted:</label>
+        <input type="checkbox" name="quoted"><br>
+        <label>Upload Quote:</label>
+        <input type="file" name="quote_file"><br>
+        <label>Upload Documents:</label>
+        <input type="file" name="document_file"><br>
+        <button type="submit">Submit</button>
+    </form>
+</body>
+</html>
