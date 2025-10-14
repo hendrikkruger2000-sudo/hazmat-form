@@ -11,11 +11,9 @@ from reportlab.lib.units import mm
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Ensure folders exist
 os.makedirs("static/waybills", exist_ok=True)
 os.makedirs("static/qrcodes", exist_ok=True)
 
-# Initialize database
 def init_db():
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
@@ -85,24 +83,20 @@ async def submit(request: Request):
     conn.commit()
     conn.close()
 
-    # Generate QR code
     qr_url = f"http://localhost:8000/confirm/{request_id}"
     qr_img = qrcode.make(qr_url)
     qr_path = f"static/qrcodes/qr_{request_id}.png"
     qr_img.save(qr_path)
 
-    # Generate PDF
     pdf_path = f"static/waybills/waybill_{request_id}.pdf"
     generate_pdf(form, request_id, qr_path, pdf_path)
 
-    # Update PDF path in DB
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE requests SET pdf_path = ? WHERE id = ?", (pdf_path, request_id))
     conn.commit()
     conn.close()
 
-    # Auto-open PDF in new tab
     return HTMLResponse(f"""
     <html><body>
     <script>
@@ -129,21 +123,17 @@ def generate_pdf(form, request_id, qr_path, pdf_path):
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
 
-    # Background
-    c.setFillColorRGB(0.93, 0.95, 0.96)  # light gray-blue
+    c.setFillColorRGB(0.93, 0.95, 0.96)
     c.rect(0, 0, width, height, fill=1)
 
-    # Logo
     logo_path = "static/logo.png"
     if os.path.exists(logo_path):
         c.drawImage(logo_path, 20*mm, height - 40*mm, width=50*mm, preserveAspectRatio=True)
 
-    # Header
     c.setFont("Helvetica-Bold", 20)
-    c.setFillColorRGB(0.83, 0.18, 0.18)  # red
+    c.setFillColorRGB(0.83, 0.18, 0.18)
     c.drawString(80*mm, height - 30*mm, "Hazmat Collection Waybill")
 
-    # Details
     c.setFont("Helvetica", 12)
     c.setFillColorRGB(0.13, 0.13, 0.13)
     y = height - 60*mm
@@ -166,7 +156,6 @@ def generate_pdf(form, request_id, qr_path, pdf_path):
         c.drawString(20*mm, y, f"{label}: {value}")
         y -= 10*mm
 
-    # QR Code
     if os.path.exists(qr_path):
         c.drawImage(qr_path, width - 50*mm, 20*mm, width=30*mm, preserveAspectRatio=True)
 
