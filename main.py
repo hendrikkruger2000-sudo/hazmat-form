@@ -52,7 +52,24 @@ async def form():
 async def submit(request: Request):
     form = await request.form()
     service_type = form.get("serviceType")
-    inco_terms = form.get("inco_terms") if service_type in ["export", "import"] else ""
+    inco_terms = form.get("inco_terms") or ""
+
+    # Unified field extraction
+    def get_field(name):
+        return form.get(f"{name}_local") or form.get(f"{name}_export") or form.get(f"{name}_import")
+
+    collection_company = get_field("collection_company")
+    collection_address = get_field("collection_address")
+    collection_person = get_field("collection_person")
+    collection_number = get_field("collection_number")
+    delivery_company = get_field("delivery_company")
+    delivery_address = get_field("delivery_address")
+    delivery_person = get_field("delivery_person")
+    delivery_number = get_field("delivery_number")
+    client_reference = get_field("client_reference")
+    pickup_date = get_field("pickup_date")
+    client_notes = get_field("client_notes")
+
     timestamp = datetime.now().isoformat()
 
     conn = sqlite3.connect("hazmat.db")
@@ -64,21 +81,9 @@ async def submit(request: Request):
             client_reference, pickup_date, inco_terms, client_notes, pdf_path, timestamp
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        service_type,
-        form.get("collection_company"),
-        form.get("collection_address"),
-        form.get("collection_person"),
-        form.get("collection_number"),
-        form.get("delivery_company"),
-        form.get("delivery_address"),
-        form.get("delivery_person"),
-        form.get("delivery_number"),
-        form.get("client_reference"),
-        form.get("pickup_date"),
-        inco_terms,
-        form.get("client_notes"),
-        "",  # placeholder for pdf_path
-        timestamp
+        service_type, collection_company, collection_address, collection_person, collection_number,
+        delivery_company, delivery_address, delivery_person, delivery_number,
+        client_reference, pickup_date, inco_terms, client_notes, "", timestamp
     ))
     request_id = cursor.lastrowid
     conn.commit()
@@ -90,7 +95,21 @@ async def submit(request: Request):
     qr_img.save(qr_path)
 
     pdf_path = f"static/waybills/waybill_{request_id}.pdf"
-    generate_pdf(form, request_id, qr_path, pdf_path)
+    generate_pdf({
+        "service_type": service_type,
+        "collection_company": collection_company,
+        "collection_address": collection_address,
+        "collection_person": collection_person,
+        "collection_number": collection_number,
+        "delivery_company": delivery_company,
+        "delivery_address": delivery_address,
+        "delivery_person": delivery_person,
+        "delivery_number": delivery_number,
+        "client_reference": client_reference,
+        "pickup_date": pickup_date,
+        "inco_terms": inco_terms,
+        "client_notes": client_notes
+    }, request_id, qr_path, pdf_path)
 
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
@@ -120,32 +139,27 @@ def thank_you():
 def confirm(request_id: int):
     return HTMLResponse(f"<h1>Driver confirmed request #{request_id}</h1>")
 
-def generate_pdf(form, request_id, qr_path, pdf_path):
+def generate_pdf(data, request_id, qr_path, pdf_path):
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
 
-    # Background
     c.setFillColor(HexColor("#ECEFF1"))
     c.rect(0, 0, width, height, fill=1)
 
-    # Logo
     logo_path = "static/logo.png"
     if os.path.exists(logo_path):
         c.drawImage(logo_path, 20*mm, height - 40*mm, width=50*mm, preserveAspectRatio=True, mask='auto')
 
-    # Header
     c.setFont("Helvetica-Bold", 22)
     c.setFillColor(HexColor("#D32F2F"))
     c.drawString(80*mm, height - 30*mm, "Hazmat Collection Waybill")
 
-    # Section Title
     def section(title, y):
         c.setFont("Helvetica-Bold", 14)
         c.setFillColor(HexColor("#D32F2F"))
         c.drawString(20*mm, y, title)
         return y - 8*mm
 
-    # Field Block
     def field(label, value, y):
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(HexColor("#212121"))
@@ -156,31 +170,30 @@ def generate_pdf(form, request_id, qr_path, pdf_path):
 
     y = height - 50*mm
     y = section("Shipment Details", y)
-    y = field("Service Type", form.get("serviceType"), y)
-    y = field("Client Reference", form.get("client_reference"), y)
-    y = field("Pickup Date", form.get("pickup_date"), y)
-    y = field("Inco Terms", form.get("inco_terms") or "N/A", y)
+    y = field("Service Type", data["service_type"], y)
+    y = field("Client Reference", data["client_reference"], y)
+    y = field("Pickup Date", data["pickup_date"], y)
+    y = field("Inco Terms", data["inco_terms"] or "N/A", y)
 
     y -= 5*mm
     y = section("Collection", y)
-    y = field("Company", form.get("collection_company"), y)
-    y = field("Address", form.get("collection_address"), y)
-    y = field("Contact Person", form.get("collection_person"), y)
-    y = field("Contact Number", form.get("collection_number"), y)
+    y = field("Company", data["collection_company"], y)
+    y = field("Address", data["collection_address"], y)
+    y = field("Contact Person", data["collection_person"], y)
+    y = field("Contact Number", data["collection_number"], y)
 
     y -= 5*mm
     y = section("Delivery", y)
-    y = field("Company", form.get("delivery_company"), y)
-    y = field("Address", form.get("delivery_address"), y)
-    y = field("Contact Person", form.get("delivery_person"), y)
-    y = field("Contact Number", form.get("delivery_number"), y)
+    y = field("Company", data["delivery_company"], y)
+    y = field("Address", data["delivery_address"], y)
+    y = field("Contact Person", data["delivery_person"], y)
+    y = field("Contact Number", data["delivery_number"], y)
 
     y -= 5*mm
     y = section("Client Notes", y)
     c.setFont("Helvetica", 10)
-    c.drawString(20*mm, y, form.get("client_notes") or "None")
+    c.drawString(20*mm, y, data["client_notes"] or "None")
 
-    # QR Code
     if os.path.exists(qr_path):
         c.drawImage(qr_path, width - 50*mm, 20*mm, width=30*mm, preserveAspectRatio=True, mask='auto')
 
