@@ -54,7 +54,7 @@ async def form():
 async def submit(request: Request):
     form = await request.form()
     files = await request.form()
-    uploaded_files = request._form["shipment_docs"]
+    uploaded_files = request._form.getlist("shipment_docs")
 
     service_type = form.get("serviceType")
 
@@ -101,8 +101,7 @@ async def submit(request: Request):
     conn.commit()
     conn.close()
 
-    # Save uploaded files
-    for file in request._form.getlist("shipment_docs"):
+    for file in uploaded_files:
         contents = await file.read()
         with open(f"static/uploads/{reference_number}_{file.filename}", "wb") as f:
             f.write(contents)

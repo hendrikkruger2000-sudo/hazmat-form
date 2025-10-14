@@ -1,44 +1,56 @@
 <form action="/submit" method="post" enctype="multipart/form-data">
-  <!-- Service Type Dropdown -->
-  <select id="serviceType" name="serviceType" onchange="updateFormFields()">
+  <label>Service Type</label>
+  <select name="serviceType" onchange="updateFields(this.value)">
     <option value="local">Local</option>
     <option value="export">Export</option>
     <option value="import">Import</option>
   </select>
 
-  <!-- Local Fields -->
-  <div id="localFields">
-    <input name="collection_company_local">
-    ...
-    <input name="inco_terms_local" value="DTD" readonly>
-    <input type="file" name="shipment_docs" multiple>
-  </div>
+  <!-- Collection Fields -->
+  <input name="collection_company_local" placeholder="Collection Company">
+  <input name="collection_company_export" placeholder="Collection Company">
+  <input name="collection_company_import" placeholder="Collection Company">
+  <!-- Repeat for address, person, number -->
 
-  <!-- Export Fields -->
-  <div id="exportFields" style="display:none;">
-    <input name="collection_company_export">
-    ...
-    <select name="inco_terms_export">
-      <option value="DDP">DDP</option>
-      <option value="DAP">DAP</option>
-      <option value="DDU">DDU</option>
-      <option value="CPT">CPT</option>
-    </select>
-    <input type="file" name="shipment_docs" multiple>
-  </div>
+  <!-- Delivery Fields -->
+  <input name="delivery_company_local" placeholder="Delivery Company">
+  <input name="delivery_company_export" placeholder="Delivery Company">
+  <input name="delivery_company_import" placeholder="Delivery Company">
+  <!-- Repeat for address, person, number -->
 
-  <!-- Import Fields -->
-  <div id="importFields" style="display:none;">
-    <input name="collection_company_import">
-    ...
-    <select name="inco_terms_import">
-      <option value="DDP">DDP</option>
-      <option value="DAP">DAP</option>
-      <option value="DDU">DDU</option>
-      <option value="EXW">EXW</option>
-    </select>
-    <input type="file" name="shipment_docs" multiple>
-  </div>
+  <!-- Client Reference -->
+  <input name="client_reference_local" placeholder="Client Reference">
+  <input name="client_reference_export" placeholder="Client Reference">
+  <input name="client_reference_import" placeholder="Client Reference">
+
+  <!-- Pickup Date -->
+  <input name="pickup_date_local" type="date">
+  <input name="pickup_date_export" type="date">
+  <input name="pickup_date_import" type="date">
+
+  <!-- Inco Terms -->
+  <input name="inco_terms_local" value="DTD" readonly>
+  <select name="inco_terms_export">
+    <option value="DDP">DDP</option>
+    <option value="DAP">DAP</option>
+    <option value="DDU">DDU</option>
+    <option value="CPT">CPT</option>
+  </select>
+  <select name="inco_terms_import">
+    <option value="DDP">DDP</option>
+    <option value="DAP">DAP</option>
+    <option value="DDU">DDU</option>
+    <option value="EXW">EXW</option>
+  </select>
+
+  <!-- Notes -->
+  <textarea name="client_notes_local" placeholder="Client Notes"></textarea>
+  <textarea name="client_notes_export" placeholder="Client Notes"></textarea>
+  <textarea name="client_notes_import" placeholder="Client Notes"></textarea>
+
+  <!-- File Upload -->
+  <label>Upload Shipment Documents</label>
+  <input type="file" name="shipment_docs" multiple>
 
   <button type="submit">Submit</button>
 </form>
