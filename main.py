@@ -1,141 +1,173 @@
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+import sqlite3, os
+from datetime import datetime
+import qrcode
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import mm
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Ensure folders exist
+os.makedirs("static/waybills", exist_ok=True)
+os.makedirs("static/qrcodes", exist_ok=True)
+
+# Initialize database
+def init_db():
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        service_type TEXT,
+        collection_company TEXT,
+        collection_address TEXT,
+        collection_person TEXT,
+        collection_number TEXT,
+        delivery_company TEXT,
+        delivery_address TEXT,
+        delivery_person TEXT,
+        delivery_number TEXT,
+        client_reference TEXT,
+        pickup_date TEXT,
+        inco_terms TEXT,
+        client_notes TEXT,
+        pdf_path TEXT,
+        timestamp TEXT
+    )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
 @app.get("/", response_class=HTMLResponse)
 async def form():
-    return """
-    <html>
-    <head>
-        <title>Hazmat Global Collection Request</title>
-        <style>
-            body {
-                font-family: 'Segoe UI', sans-serif;
-                background-color: #f5f5f5;
-                color: #212121;
-                padding: 2rem;
-                max-width: 800px;
-                margin: auto;
-            }
-            h1 {
-                color: #D32F2F;
-                text-align: center;
-            }
-            .form-section {
-                margin-top: 1rem;
-                padding: 1rem;
-                background-color: #ffffff;
-                border: 1px solid #ccc;
-                border-radius: 8px;
-            }
-            label {
-                display: block;
-                margin-top: 1rem;
-                font-weight: bold;
-            }
-            input, select, textarea {
-                width: 100%;
-                padding: 0.5rem;
-                margin-top: 0.5rem;
-                border: 1px solid #616161;
-                border-radius: 4px;
-            }
-            button {
-                background-color: #388E3C;
-                color: white;
-                padding: 0.75rem 1.5rem;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                margin-top: 1rem;
-            }
-            img {
-                display: block;
-                margin: auto;
-                height: 80px;
-                margin-bottom: 1rem;
-            }
-        </style>
-        <script>
-            function updateFormFields() {
-                const type = document.getElementById("serviceType").value;
-                document.getElementById("localFields").style.display = type === "local" ? "block" : "none";
-                document.getElementById("exportFields").style.display = type === "export" ? "block" : "none";
-                document.getElementById("importFields").style.display = type === "import" ? "block" : "none";
-            }
-        </script>
-    </head>
-    <body>
-        <img src="/static/logo.png" alt="Hazmat Global Logo">
-        <h1>Hazmat Global Collection Request</h1>
-        <form action="/submit" method="post">
-            <label for="serviceType">Service Type</label>
-            <select id="serviceType" name="serviceType" onchange="updateFormFields()">
-                <option value="local">Local</option>
-                <option value="export">Export</option>
-                <option value="import">Import</option>
-            </select>
-
-            <div id="localFields" class="form-section">
-                <label>Collection Company Name</label><input name="collection_company">
-                <label>Collection Address</label><input name="collection_address">
-                <label>Collection Person Name</label><input name="collection_person">
-                <label>Collection Number</label><input name="collection_number">
-                <label>Service Type</label><select name="local_service"><option>Normal</option><option>Express</option></select>
-                <label>Delivery Company Name</label><input name="delivery_company">
-                <label>Delivery Address</label><input name="delivery_address">
-                <label>Delivery Person Name</label><input name="delivery_person">
-                <label>Delivery Number</label><input name="delivery_number">
-                <label>Client Reference Number</label><input name="client_reference">
-                <label>Pickup Date</label><input type="date" name="pickup_date">
-                <label>Client Notes</label><textarea name="client_notes"></textarea>
-            </div>
-
-            <div id="exportFields" class="form-section" style="display:none;">
-                <label>Collection Company Name</label><input name="collection_company">
-                <label>Collection Address</label><input name="collection_address">
-                <label>Collection Person Name</label><input name="collection_person">
-                <label>Collection Number</label><input name="collection_number">
-                <label>Service Type</label><select name="export_service"><option>Normal</option><option>Express</option></select>
-                <label>Inco Terms</label><select name="inco_terms"><option>DDP</option><option>DAP</option><option>DDU</option><option>CPT</option></select>
-                <label>Delivery Company Name</label><input name="delivery_company">
-                <label>Delivery Address</label><input name="delivery_address">
-                <label>Delivery Person Name</label><input name="delivery_person">
-                <label>Delivery Number</label><input name="delivery_number">
-                <label>Client Reference Number</label><input name="client_reference">
-                <label>Pickup Date</label><input type="date" name="pickup_date">
-                <label>Client Notes</label><textarea name="client_notes"></textarea>
-            </div>
-
-            <div id="importFields" class="form-section" style="display:none;">
-                <label>Collection Company Name</label><input name="collection_company">
-                <label>Collection Address</label><input name="collection_address">
-                <label>Collection Person Name</label><input name="collection_person">
-                <label>Collection Number</label><input name="collection_number">
-                <label>Service Type</label><select name="import_service"><option>Normal</option><option>Express</option></select>
-                <label>Inco Terms</label><select name="inco_terms"><option>DDP</option><option>DAP</option><option>DDU</option><option>EXW</option></select>
-                <label>Delivery Company Name</label><input name="delivery_company">
-                <label>Delivery Address</label><input name="delivery_address">
-                <label>Delivery Person Name</label><input name="delivery_person">
-                <label>Delivery Number</label><input name="delivery_number">
-                <label>Client Reference Number</label><input name="client_reference">
-                <label>Pickup Date</label><input type="date" name="pickup_date">
-                <label>Client Notes</label><textarea name="client_notes"></textarea>
-            </div>
-
-            <button type="submit">Submit Request</button>
-        </form>
-    </body>
-    </html>
-    """
+    with open("templates/form.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
 
 @app.post("/submit")
 async def submit(request: Request):
-    form_data = await request.form()
-    print("Received form submission:")
-    for key, value in form_data.items():
-        print(f"{key}: {value}")
-    return {"status": "success", "message": "Request received"}
+    form = await request.form()
+    service_type = form.get("serviceType")
+    inco_terms = form.get("inco_terms") if service_type in ["export", "import"] else ""
+    timestamp = datetime.now().isoformat()
+
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO requests (
+            service_type, collection_company, collection_address, collection_person, collection_number,
+            delivery_company, delivery_address, delivery_person, delivery_number,
+            client_reference, pickup_date, inco_terms, client_notes, pdf_path, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        service_type,
+        form.get("collection_company"),
+        form.get("collection_address"),
+        form.get("collection_person"),
+        form.get("collection_number"),
+        form.get("delivery_company"),
+        form.get("delivery_address"),
+        form.get("delivery_person"),
+        form.get("delivery_number"),
+        form.get("client_reference"),
+        form.get("pickup_date"),
+        inco_terms,
+        form.get("client_notes"),
+        "",  # placeholder for pdf_path
+        timestamp
+    ))
+    request_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    # Generate QR code
+    qr_url = f"http://localhost:8000/confirm/{request_id}"
+    qr_img = qrcode.make(qr_url)
+    qr_path = f"static/qrcodes/qr_{request_id}.png"
+    qr_img.save(qr_path)
+
+    # Generate PDF
+    pdf_path = f"static/waybills/waybill_{request_id}.pdf"
+    generate_pdf(form, request_id, qr_path, pdf_path)
+
+    # Update PDF path in DB
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE requests SET pdf_path = ? WHERE id = ?", (pdf_path, request_id))
+    conn.commit()
+    conn.close()
+
+    # Auto-open PDF in new tab
+    return HTMLResponse(f"""
+    <html><body>
+    <script>
+        window.open('/pdf/{request_id}', '_blank');
+        window.location.href = '/thankyou';
+    </script>
+    </body></html>
+    """)
+
+@app.get("/pdf/{request_id}")
+def serve_pdf(request_id: int):
+    path = f"static/waybills/waybill_{request_id}.pdf"
+    return FileResponse(path, media_type="application/pdf", filename=f"waybill_{request_id}.pdf")
+
+@app.get("/thankyou", response_class=HTMLResponse)
+def thank_you():
+    return HTMLResponse("<h1>Thank you! Your request has been submitted.</h1>")
+
+@app.get("/confirm/{request_id}", response_class=HTMLResponse)
+def confirm(request_id: int):
+    return HTMLResponse(f"<h1>Driver confirmed request #{request_id}</h1>")
+
+def generate_pdf(form, request_id, qr_path, pdf_path):
+    c = canvas.Canvas(pdf_path, pagesize=A4)
+    width, height = A4
+
+    # Background
+    c.setFillColorRGB(0.93, 0.95, 0.96)  # light gray-blue
+    c.rect(0, 0, width, height, fill=1)
+
+    # Logo
+    logo_path = "static/logo.png"
+    if os.path.exists(logo_path):
+        c.drawImage(logo_path, 20*mm, height - 40*mm, width=50*mm, preserveAspectRatio=True)
+
+    # Header
+    c.setFont("Helvetica-Bold", 20)
+    c.setFillColorRGB(0.83, 0.18, 0.18)  # red
+    c.drawString(80*mm, height - 30*mm, "Hazmat Collection Waybill")
+
+    # Details
+    c.setFont("Helvetica", 12)
+    c.setFillColorRGB(0.13, 0.13, 0.13)
+    y = height - 60*mm
+    fields = [
+        ("Service Type", form.get("serviceType")),
+        ("Collection Company", form.get("collection_company")),
+        ("Collection Address", form.get("collection_address")),
+        ("Collection Person", form.get("collection_person")),
+        ("Collection Number", form.get("collection_number")),
+        ("Delivery Company", form.get("delivery_company")),
+        ("Delivery Address", form.get("delivery_address")),
+        ("Delivery Person", form.get("delivery_person")),
+        ("Delivery Number", form.get("delivery_number")),
+        ("Client Reference", form.get("client_reference")),
+        ("Pickup Date", form.get("pickup_date")),
+        ("Inco Terms", form.get("inco_terms") or "N/A"),
+        ("Client Notes", form.get("client_notes") or "None")
+    ]
+    for label, value in fields:
+        c.drawString(20*mm, y, f"{label}: {value}")
+        y -= 10*mm
+
+    # QR Code
+    if os.path.exists(qr_path):
+        c.drawImage(qr_path, width - 50*mm, 20*mm, width=30*mm, preserveAspectRatio=True)
+
+    c.save()
