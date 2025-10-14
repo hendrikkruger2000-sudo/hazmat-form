@@ -3,40 +3,139 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def form():
     return """
     <html>
-        <head><title>Hazmat Collection Request</title></head>
-        <body style="font-family:sans-serif;">
-            <h1>Hazmat Global Collection Request</h1>
-            <form action="/submit" method="post">
-                Name: <input type="text" name="name"><br><br>
-                Contact: <input type="text" name="contact"><br><br>
-                Location: <input type="text" name="location"><br><br>
-                Waste Type: <input type="text" name="waste"><br><br>
-                Urgency: 
-                <select name="urgency">
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                </select><br><br>
-                Notes: <textarea name="notes"></textarea><br><br>
-                <input type="submit" value="Submit Request">
-            </form>
-        </body>
+    <head>
+        <title>Hazmat Global Collection Request</title>
+        <style>
+            body {
+                font-family: 'Segoe UI', sans-serif;
+                background-color: #f5f5f5;
+                color: #212121;
+                padding: 2rem;
+                max-width: 800px;
+                margin: auto;
+            }
+            h1 {
+                color: #D32F2F;
+                text-align: center;
+            }
+            .form-section {
+                margin-top: 1rem;
+                padding: 1rem;
+                background-color: #ffffff;
+                border: 1px solid #ccc;
+                border-radius: 8px;
+            }
+            label {
+                display: block;
+                margin-top: 1rem;
+                font-weight: bold;
+            }
+            input, select, textarea {
+                width: 100%;
+                padding: 0.5rem;
+                margin-top: 0.5rem;
+                border: 1px solid #616161;
+                border-radius: 4px;
+            }
+            button {
+                background-color: #388E3C;
+                color: white;
+                padding: 0.75rem 1.5rem;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                margin-top: 1rem;
+            }
+            img {
+                display: block;
+                margin: auto;
+                height: 80px;
+                margin-bottom: 1rem;
+            }
+        </style>
+        <script>
+            function updateFormFields() {
+                const type = document.getElementById("serviceType").value;
+                document.getElementById("localFields").style.display = type === "local" ? "block" : "none";
+                document.getElementById("exportFields").style.display = type === "export" ? "block" : "none";
+                document.getElementById("importFields").style.display = type === "import" ? "block" : "none";
+            }
+        </script>
+    </head>
+    <body>
+        <img src="/static/logo.png" alt="Hazmat Global Logo">
+        <h1>Hazmat Global Collection Request</h1>
+        <form action="/submit" method="post">
+            <label for="serviceType">Service Type</label>
+            <select id="serviceType" name="serviceType" onchange="updateFormFields()">
+                <option value="local">Local</option>
+                <option value="export">Export</option>
+                <option value="import">Import</option>
+            </select>
+
+            <div id="localFields" class="form-section">
+                <label>Collection Company Name</label><input name="collection_company">
+                <label>Collection Address</label><input name="collection_address">
+                <label>Collection Person Name</label><input name="collection_person">
+                <label>Collection Number</label><input name="collection_number">
+                <label>Service Type</label><select name="local_service"><option>Normal</option><option>Express</option></select>
+                <label>Delivery Company Name</label><input name="delivery_company">
+                <label>Delivery Address</label><input name="delivery_address">
+                <label>Delivery Person Name</label><input name="delivery_person">
+                <label>Delivery Number</label><input name="delivery_number">
+                <label>Client Reference Number</label><input name="client_reference">
+                <label>Pickup Date</label><input type="date" name="pickup_date">
+                <label>Client Notes</label><textarea name="client_notes"></textarea>
+            </div>
+
+            <div id="exportFields" class="form-section" style="display:none;">
+                <label>Collection Company Name</label><input name="collection_company">
+                <label>Collection Address</label><input name="collection_address">
+                <label>Collection Person Name</label><input name="collection_person">
+                <label>Collection Number</label><input name="collection_number">
+                <label>Service Type</label><select name="export_service"><option>Normal</option><option>Express</option></select>
+                <label>Inco Terms</label><select name="inco_terms"><option>DDP</option><option>DAP</option><option>DDU</option><option>CPT</option></select>
+                <label>Delivery Company Name</label><input name="delivery_company">
+                <label>Delivery Address</label><input name="delivery_address">
+                <label>Delivery Person Name</label><input name="delivery_person">
+                <label>Delivery Number</label><input name="delivery_number">
+                <label>Client Reference Number</label><input name="client_reference">
+                <label>Pickup Date</label><input type="date" name="pickup_date">
+                <label>Client Notes</label><textarea name="client_notes"></textarea>
+            </div>
+
+            <div id="importFields" class="form-section" style="display:none;">
+                <label>Collection Company Name</label><input name="collection_company">
+                <label>Collection Address</label><input name="collection_address">
+                <label>Collection Person Name</label><input name="collection_person">
+                <label>Collection Number</label><input name="collection_number">
+                <label>Service Type</label><select name="import_service"><option>Normal</option><option>Express</option></select>
+                <label>Inco Terms</label><select name="inco_terms"><option>DDP</option><option>DAP</option><option>DDU</option><option>EXW</option></select>
+                <label>Delivery Company Name</label><input name="delivery_company">
+                <label>Delivery Address</label><input name="delivery_address">
+                <label>Delivery Person Name</label><input name="delivery_person">
+                <label>Delivery Number</label><input name="delivery_number">
+                <label>Client Reference Number</label><input name="client_reference">
+                <label>Pickup Date</label><input type="date" name="pickup_date">
+                <label>Client Notes</label><textarea name="client_notes"></textarea>
+            </div>
+
+            <button type="submit">Submit Request</button>
+        </form>
+    </body>
     </html>
     """
 
 @app.post("/submit")
-async def submit(
-    name: str = Form(...),
-    contact: str = Form(...),
-    location: str = Form(...),
-    waste: str = Form(...),
-    urgency: str = Form(...),
-    notes: str = Form(...)
-):
-    print(f"New request from {name} at {location} for {waste} (Urgency: {urgency})")
+async def submit(request: Request):
+    form_data = await request.form()
+    print("Received form submission:")
+    for key, value in form_data.items():
+        print(f"{key}: {value}")
     return {"status": "success", "message": "Request received"}
