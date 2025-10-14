@@ -1,56 +1,169 @@
-<form action="/submit" method="post" enctype="multipart/form-data">
-  <label>Service Type</label>
-  <select name="serviceType" onchange="updateFields(this.value)">
-    <option value="local">Local</option>
-    <option value="export">Export</option>
-    <option value="import">Import</option>
-  </select>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hazmat Global Collection Request</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #F5F7FA;
+      color: #212121;
+      padding: 2rem;
+      max-width: 900px;
+      margin: auto;
+    }
+    h1 {
+      color: #D32F2F;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    img {
+      display: block;
+      margin: auto;
+      height: 80px;
+      margin-bottom: 1rem;
+    }
+    .section {
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      padding: 1.5rem;
+      margin-top: 2rem;
+    }
+    .section h2 {
+      color: #455A64;
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid #B0BEC5;
+      padding-bottom: 0.5rem;
+    }
+    label {
+      display: block;
+      margin-top: 1rem;
+      font-weight: 600;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 0.75rem;
+      margin-top: 0.5rem;
+      border: 1px solid #B0BEC5;
+      border-radius: 4px;
+      font-family: 'Poppins', sans-serif;
+    }
+    button {
+      background-color: #D32F2F;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 2rem;
+      font-weight: 600;
+    }
+  </style>
+  <script>
+    function updateFormFields() {
+      const type = document.getElementById("serviceType").value;
+      document.getElementById("localFields").style.display = type === "local" ? "block" : "none";
+      document.getElementById("exportFields").style.display = type === "export" ? "block" : "none";
+      document.getElementById("importFields").style.display = type === "import" ? "block" : "none";
+    }
+  </script>
+</head>
+<body>
+  <img src="/static/logo.png" alt="Hazmat Global Logo">
+  <h1>Hazmat Global Collection Request</h1>
 
-  <!-- Collection Fields -->
-  <input name="collection_company_local" placeholder="Collection Company">
-  <input name="collection_company_export" placeholder="Collection Company">
-  <input name="collection_company_import" placeholder="Collection Company">
-  <!-- Repeat for address, person, number -->
+  <form action="/submit" method="post" enctype="multipart/form-data">
+    <label for="serviceType">Service Type</label>
+    <select id="serviceType" name="serviceType" onchange="updateFormFields()">
+      <option value="local">Local</option>
+      <option value="export">Export</option>
+      <option value="import">Import</option>
+    </select>
 
-  <!-- Delivery Fields -->
-  <input name="delivery_company_local" placeholder="Delivery Company">
-  <input name="delivery_company_export" placeholder="Delivery Company">
-  <input name="delivery_company_import" placeholder="Delivery Company">
-  <!-- Repeat for address, person, number -->
+    <!-- LOCAL -->
+    <div id="localFields" class="section">
+      <h2>Shipment Details</h2>
+      <label>Client Reference Number</label><input name="client_reference_local">
+      <label>Pickup Date</label><input type="date" name="pickup_date_local">
+      <label>Client Notes</label><textarea name="client_notes_local"></textarea>
+      <label>Inco Terms</label><input name="inco_terms_local" value="DTD" readonly>
 
-  <!-- Client Reference -->
-  <input name="client_reference_local" placeholder="Client Reference">
-  <input name="client_reference_export" placeholder="Client Reference">
-  <input name="client_reference_import" placeholder="Client Reference">
+      <h2>Collection Details</h2>
+      <label>Collection Company Name</label><input name="collection_company_local">
+      <label>Collection Address</label><input name="collection_address_local">
+      <label>Collection Person Name</label><input name="collection_person_local">
+      <label>Collection Number</label><input name="collection_number_local">
 
-  <!-- Pickup Date -->
-  <input name="pickup_date_local" type="date">
-  <input name="pickup_date_export" type="date">
-  <input name="pickup_date_import" type="date">
+      <h2>Delivery Details</h2>
+      <label>Delivery Company Name</label><input name="delivery_company_local">
+      <label>Delivery Address</label><input name="delivery_address_local">
+      <label>Delivery Person Name</label><input name="delivery_person_local">
+      <label>Delivery Number</label><input name="delivery_number_local">
 
-  <!-- Inco Terms -->
-  <input name="inco_terms_local" value="DTD" readonly>
-  <select name="inco_terms_export">
-    <option value="DDP">DDP</option>
-    <option value="DAP">DAP</option>
-    <option value="DDU">DDU</option>
-    <option value="CPT">CPT</option>
-  </select>
-  <select name="inco_terms_import">
-    <option value="DDP">DDP</option>
-    <option value="DAP">DAP</option>
-    <option value="DDU">DDU</option>
-    <option value="EXW">EXW</option>
-  </select>
+      <label>Upload Shipment Documents</label><input type="file" name="shipment_docs" multiple>
+    </div>
 
-  <!-- Notes -->
-  <textarea name="client_notes_local" placeholder="Client Notes"></textarea>
-  <textarea name="client_notes_export" placeholder="Client Notes"></textarea>
-  <textarea name="client_notes_import" placeholder="Client Notes"></textarea>
+    <!-- EXPORT -->
+    <div id="exportFields" class="section" style="display:none;">
+      <h2>Shipment Details</h2>
+      <label>Client Reference Number</label><input name="client_reference_export">
+      <label>Pickup Date</label><input type="date" name="pickup_date_export">
+      <label>Client Notes</label><textarea name="client_notes_export"></textarea>
+      <label>Inco Terms</label>
+      <select name="inco_terms_export">
+        <option value="DDP">DDP</option>
+        <option value="DAP">DAP</option>
+        <option value="DDU">DDU</option>
+        <option value="CPT">CPT</option>
+      </select>
 
-  <!-- File Upload -->
-  <label>Upload Shipment Documents</label>
-  <input type="file" name="shipment_docs" multiple>
+      <h2>Collection Details</h2>
+      <label>Collection Company Name</label><input name="collection_company_export">
+      <label>Collection Address</label><input name="collection_address_export">
+      <label>Collection Person Name</label><input name="collection_person_export">
+      <label>Collection Number</label><input name="collection_number_export">
 
-  <button type="submit">Submit</button>
-</form>
+      <h2>Delivery Details</h2>
+      <label>Delivery Company Name</label><input name="delivery_company_export">
+      <label>Delivery Address</label><input name="delivery_address_export">
+      <label>Delivery Person Name</label><input name="delivery_person_export">
+      <label>Delivery Number</label><input name="delivery_number_export">
+
+      <label>Upload Shipment Documents</label><input type="file" name="shipment_docs" multiple>
+    </div>
+
+    <!-- IMPORT -->
+    <div id="importFields" class="section" style="display:none;">
+      <h2>Shipment Details</h2>
+      <label>Client Reference Number</label><input name="client_reference_import">
+      <label>Pickup Date</label><input type="date" name="pickup_date_import">
+      <label>Client Notes</label><textarea name="client_notes_import"></textarea>
+      <label>Inco Terms</label>
+      <select name="inco_terms_import">
+        <option value="DDP">DDP</option>
+        <option value="DAP">DAP</option>
+        <option value="DDU">DDU</option>
+        <option value="EXW">EXW</option>
+      </select>
+
+      <h2>Collection Details</h2>
+      <label>Collection Company Name</label><input name="collection_company_import">
+      <label>Collection Address</label><input name="collection_address_import">
+      <label>Collection Person Name</label><input name="collection_person_import">
+      <label>Collection Number</label><input name="collection_number_import">
+
+      <h2>Delivery Details</h2>
+      <label>Delivery Company Name</label><input name="delivery_company_import">
+      <label>Delivery Address</label><input name="delivery_address_import">
+      <label>Delivery Person Name</label><input name="delivery_person_import">
+      <label>Delivery Number</label><input name="delivery_number_import">
+
+      <label>Upload Shipment Documents</label><input type="file" name="shipment_docs" multiple>
+    </div>
+
+    <button type="submit">Submit Request</button>
+  </form>
+</body>
+</html>
