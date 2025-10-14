@@ -7,6 +7,7 @@ import qrcode
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
+from reportlab.lib.colors import HexColor
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -123,40 +124,64 @@ def generate_pdf(form, request_id, qr_path, pdf_path):
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
 
-    c.setFillColorRGB(0.93, 0.95, 0.96)
+    # Background
+    c.setFillColor(HexColor("#ECEFF1"))
     c.rect(0, 0, width, height, fill=1)
 
+    # Logo
     logo_path = "static/logo.png"
     if os.path.exists(logo_path):
-        c.drawImage(logo_path, 20*mm, height - 40*mm, width=50*mm, preserveAspectRatio=True)
+        c.drawImage(logo_path, 20*mm, height - 40*mm, width=50*mm, preserveAspectRatio=True, mask='auto')
 
-    c.setFont("Helvetica-Bold", 20)
-    c.setFillColorRGB(0.83, 0.18, 0.18)
+    # Header
+    c.setFont("Helvetica-Bold", 22)
+    c.setFillColor(HexColor("#D32F2F"))
     c.drawString(80*mm, height - 30*mm, "Hazmat Collection Waybill")
 
-    c.setFont("Helvetica", 12)
-    c.setFillColorRGB(0.13, 0.13, 0.13)
-    y = height - 60*mm
-    fields = [
-        ("Service Type", form.get("serviceType")),
-        ("Collection Company", form.get("collection_company")),
-        ("Collection Address", form.get("collection_address")),
-        ("Collection Person", form.get("collection_person")),
-        ("Collection Number", form.get("collection_number")),
-        ("Delivery Company", form.get("delivery_company")),
-        ("Delivery Address", form.get("delivery_address")),
-        ("Delivery Person", form.get("delivery_person")),
-        ("Delivery Number", form.get("delivery_number")),
-        ("Client Reference", form.get("client_reference")),
-        ("Pickup Date", form.get("pickup_date")),
-        ("Inco Terms", form.get("inco_terms") or "N/A"),
-        ("Client Notes", form.get("client_notes") or "None")
-    ]
-    for label, value in fields:
-        c.drawString(20*mm, y, f"{label}: {value}")
-        y -= 10*mm
+    # Section Title
+    def section(title, y):
+        c.setFont("Helvetica-Bold", 14)
+        c.setFillColor(HexColor("#D32F2F"))
+        c.drawString(20*mm, y, title)
+        return y - 8*mm
 
+    # Field Block
+    def field(label, value, y):
+        c.setFont("Helvetica-Bold", 10)
+        c.setFillColor(HexColor("#212121"))
+        c.drawString(20*mm, y, f"{label}:")
+        c.setFont("Helvetica", 10)
+        c.drawString(60*mm, y, value or "—")
+        return y - 7*mm
+
+    y = height - 50*mm
+    y = section("Shipment Details", y)
+    y = field("Service Type", form.get("serviceType"), y)
+    y = field("Client Reference", form.get("client_reference"), y)
+    y = field("Pickup Date", form.get("pickup_date"), y)
+    y = field("Inco Terms", form.get("inco_terms") or "N/A", y)
+
+    y -= 5*mm
+    y = section("Collection", y)
+    y = field("Company", form.get("collection_company"), y)
+    y = field("Address", form.get("collection_address"), y)
+    y = field("Contact Person", form.get("collection_person"), y)
+    y = field("Contact Number", form.get("collection_number"), y)
+
+    y -= 5*mm
+    y = section("Delivery", y)
+    y = field("Company", form.get("delivery_company"), y)
+    y = field("Address", form.get("delivery_address"), y)
+    y = field("Contact Person", form.get("delivery_person"), y)
+    y = field("Contact Number", form.get("delivery_number"), y)
+
+    y -= 5*mm
+    y = section("Client Notes", y)
+    c.setFont("Helvetica", 10)
+    c.drawString(20*mm, y, form.get("client_notes") or "None")
+
+    # QR Code
     if os.path.exists(qr_path):
-        c.drawImage(qr_path, width - 50*mm, 20*mm, width=30*mm, preserveAspectRatio=True)
+        c.drawImage(qr_path, width - 50*mm, 20*mm, width=30*mm, preserveAspectRatio=True, mask='auto')
 
     c.save()
