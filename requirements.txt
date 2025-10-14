@@ -3,3 +3,4 @@ uvicorn
 qrcode[pil]
 reportlab
 jinja2
+python-multipart
