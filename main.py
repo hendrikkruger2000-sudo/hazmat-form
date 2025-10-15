@@ -206,7 +206,7 @@ def assign_collection(payload: dict):
     hazjnb_ref = payload.get("hazjnb_ref")
 
     import sqlite3
-    conn = sqlite3.connect("Acumatdb.db")
+    conn = sqlite3.connect("hazzmat.db")
     cursor = conn.cursor()
 
     # Confirm the column exists
@@ -228,10 +228,12 @@ def assign_collection(payload: dict):
 @app.get("/driver/{code}")
 def get_driver_jobs(code: str):
     import sqlite3
-    conn = sqlite3.connect("Acumatdb.db")
+    conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
+
+    # Adjust column names to match your schema
     cursor.execute("""
-        SELECT reference_number, collection_company, collection_address, pickup_date
+        SELECT reference_number, collection_company, item_location, service_type
         FROM requests WHERE assigned_driver = ?
     """, (code,))
     rows = cursor.fetchall()
