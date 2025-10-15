@@ -206,16 +206,9 @@ def assign_collection(payload: dict):
     hazjnb_ref = payload.get("hazjnb_ref")
 
     import sqlite3
-    conn = sqlite3.connect("hazzmat.db")
+    conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
 
-    # Confirm the column exists
-    cursor.execute("PRAGMA table_info(requests)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if "assigned_driver" not in columns:
-        cursor.execute("ALTER TABLE requests ADD COLUMN assigned_driver TEXT")
-
-    # Update the assignment
     cursor.execute("""
         UPDATE requests SET assigned_driver = ? WHERE reference_number = ?
     """, (driver_code, hazjnb_ref))
@@ -231,9 +224,8 @@ def get_driver_jobs(code: str):
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
 
-    # Adjust column names to match your schema
     cursor.execute("""
-        SELECT reference_number, collection_company, item_location, service_type
+        SELECT reference_number, collection_company, collection_address, pickup_date
         FROM requests WHERE assigned_driver = ?
     """, (code,))
     rows = cursor.fetchall()
