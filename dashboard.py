@@ -161,22 +161,35 @@ class DashboardWindow(QMainWindow):
 
         def assign_driver_to_collection(self):
             if hasattr(self, "selected_driver_code") and hasattr(self, "selected_collection_row"):
-                haz_ref = self.unassigned_table.item(self.selected_collection_row, 1).text().split(" ")[0]
+                row = self.selected_collection_row
+                haz_ref = self.unassigned_table.item(row, 1).text()
+                company = self.unassigned_table.item(row, 2).text()
+                pickup_date = self.unassigned_table.item(row, 3).text()
+                address = self.unassigned_table.item(row, 4).text()
                 driver_code = self.selected_driver_code
+                driver_name = self.driver_table.item(0 if driver_code == "NK" else 1, 0).text()
 
+                # ✅ Send to backend
                 try:
                     requests.post("https://hazmat-collection.onrender.com/assign", json={
                         "driver_code": driver_code,
                         "hazjnb_ref": haz_ref
                     })
                 except Exception as e:
-                    print("Failed to push assignment:", e)
+                    print("❌ Failed to push assignment:", e)
 
-                driver_name = self.driver_table.item(0 if driver_code == "NK" else 1, 0).text()
-                self.unassigned_table.setItem(self.selected_collection_row, 2, QTableWidgetItem(driver_name))
-                self.unassigned_table.setItem(self.selected_collection_row, 1, QTableWidgetItem(
-                    haz_ref + f" ({driver_code})"
-                ))
+                # ✅ Remove from unassigned table
+                self.unassigned_table.removeRow(row)
+
+                # ✅ Add to collections tab
+                new_row = self.collections_table.rowCount()
+                self.collections_table.insertRow(new_row)
+                self.collections_table.setItem(new_row, 0, QTableWidgetItem("HMJ—"))  # Placeholder
+                self.collections_table.setItem(new_row, 1, QTableWidgetItem(haz_ref))
+                self.collections_table.setItem(new_row, 2, QTableWidgetItem(company))
+                self.collections_table.setItem(new_row, 3, QTableWidgetItem(pickup_date))
+                self.collections_table.setItem(new_row, 4, QTableWidgetItem(driver_name))
+                self.collections_table.setItem(new_row, 5, QTableWidgetItem("Assigned"))
 
         def build_logo_header(self):
                 logo = QLabel()

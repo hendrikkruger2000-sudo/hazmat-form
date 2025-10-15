@@ -217,6 +217,7 @@ def assign_collection(payload: dict):
 
 @app.get("/driver/{code}")
 def get_driver_jobs(code: str):
+    import sqlite3
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
     cursor.execute("""
@@ -226,15 +227,16 @@ def get_driver_jobs(code: str):
     rows = cursor.fetchall()
     conn.close()
 
-    return [
-        {
+    jobs = []
+    for row in rows:
+        jobs.append({
             "hazjnb_ref": row[0],
             "company": row[1],
             "address": row[2],
             "pickup_date": row[3]
-        }
-        for row in rows
-    ]
+        })
+
+    return jobs
 
 def generate_pdf(data, request_id, qr_path, pdf_path):
     c = canvas.Canvas(pdf_path, pagesize=A4)
