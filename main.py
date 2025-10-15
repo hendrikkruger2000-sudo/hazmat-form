@@ -185,6 +185,7 @@ def get_collections():
     cursor.execute("""
         SELECT reference_number, collection_company, collection_address, pickup_date
         FROM requests
+        WHERE assigned_driver IS NULL OR assigned_driver = ''
         ORDER BY timestamp DESC
     """)
     rows = cursor.fetchall()
