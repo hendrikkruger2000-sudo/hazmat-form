@@ -209,15 +209,12 @@ def assign_collection(payload: dict):
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
 
-    # Log before update
-    print(f"Assigning {hazjnb_ref} to driver {driver_code}")
-
     cursor.execute("""
         UPDATE requests SET assigned_driver = ? WHERE reference_number = ?
     """, (driver_code, hazjnb_ref))
 
-    if cursor.rowcount == 0:
-        print(f"❌ No match found for reference_number: {hazjnb_ref}")
+    print(f"Assigning {hazjnb_ref} to driver {driver_code}")
+    print(f"Rows affected: {cursor.rowcount}")
 
     conn.commit()
     conn.close()
