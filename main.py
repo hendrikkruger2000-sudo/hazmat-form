@@ -38,7 +38,8 @@ def init_db():
         client_notes TEXT,
         pdf_path TEXT,
         timestamp TEXT,
-        assigned_driver TEXT
+        assigned_driver TEXT,
+        status TEXT
     )
     """)
     conn.commit()
@@ -183,7 +184,7 @@ def get_collections():
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT reference_number, collection_company, collection_address, pickup_date
+        SELECT reference_number, collection_company, collection_address, pickup_date, status
         FROM requests
         WHERE assigned_driver IS NULL OR assigned_driver = ''
         ORDER BY timestamp DESC
@@ -215,7 +216,7 @@ def assign_collection(payload: dict):
 
     # Run update
     cursor.execute("""
-        UPDATE requests SET assigned_driver = ? WHERE reference_number = ?
+        UPDATE requests SET assigned_driver = ?, status = 'Assigned' WHERE reference_number = ?
     """, (driver_code, hazjnb_ref))
 
     conn.commit()
@@ -253,6 +254,40 @@ def get_driver_jobs(code: str):
         })
 
     return jobs
+
+@app.post("/scan_qr")
+def scan_qr(payload: dict):
+    ref = payload.get("ref")
+    driver_id = payload.get("driver_id")
+    timestamp = datetime.now().isoformat()
+
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+
+    # Log scan
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS scan_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reference_number TEXT,
+            driver_id TEXT,
+            timestamp TEXT
+        )
+    """)
+    cursor.execute("""
+        INSERT INTO scan_log (reference_number, driver_id, timestamp)
+        VALUES (?, ?, ?)
+    """, (ref, driver_id, timestamp))
+
+    # Update status
+    cursor.execute("""
+        UPDATE requests SET status = 'Collected' WHERE reference_number = ?
+    """, (ref,))
+
+    conn.commit()
+    conn.close()
+
+    print(f"✅ QR scan logged and status updated for {ref}")
+    return {"status": "collected", "ref": ref, "driver": driver_id}
 
 def generate_pdf(data, request_id, qr_path, pdf_path):
     c = canvas.Canvas(pdf_path, pagesize=A4)

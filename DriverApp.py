@@ -9,8 +9,8 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from pyzbar.pyzbar import decode
 
 DRIVER_CREDENTIALS = {
-    "NT": {"password": "NT", "code": "NT"},       # Ntivulo Khosa
-    "Kenny": {"password": "Kenny", "code": "Kenny"}  # Kenneth Rangata
+    "Nkosa": {"password": "NK", "code": "NK"},       # Ntivulo Khosa
+    "Rangwa": {"password": "KR", "code": "KR"}       # Kenneth Rangata
 }
 
 BACKEND_URL = "https://hazmat-collection.onrender.com"
