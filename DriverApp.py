@@ -1,4 +1,4 @@
-import sys, urllib.parse
+import sys, urllib.parse, requests, cv2
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QDialog, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem
@@ -6,9 +6,14 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-import cv2
 from pyzbar.pyzbar import decode
-from PIL import Image
+
+DRIVER_CREDENTIALS = {
+    "NT": {"password": "NT", "code": "NT"},       # Ntivulo Khosa
+    "Kenny": {"password": "Kenny", "code": "Kenny"}  # Kenneth Rangata
+}
+
+BACKEND_URL = "https://hazmat-collection.onrender.com"
 
 # -------------------- GPS Screen --------------------
 class GPSScreen(QDialog):
@@ -78,16 +83,15 @@ class DriverLogin(QDialog):
         login_btn.clicked.connect(self.try_login)
         layout.addWidget(login_btn)
 
+        self.driver_code = None
+
     def validate_login(self):
-        code = self.code_input.text().strip()
+        username = self.code_input.text().strip()
         password = self.pass_input.text().strip()
-        valid_logins = {
-            "NK": "hazmat2025",
-            "KR": "secureKR",
-            "NKH": "nkhdriver",
-            "KRA": "krahazmat"
-        }
-        return valid_logins.get(code) == password
+        if username in DRIVER_CREDENTIALS and DRIVER_CREDENTIALS[username]["password"] == password:
+            self.driver_code = DRIVER_CREDENTIALS[username]["code"]
+            return True
+        return False
 
     def try_login(self):
         if self.validate_login():
@@ -103,6 +107,7 @@ class DriverDashboard(QWidget):
         super().__init__()
         self.setWindowTitle("Hazmat Driver Dashboard")
         self.setMinimumSize(900, 600)
+        self.driver_code = driver_code
 
         self.setStyleSheet("""
             QWidget { background-color: #1c1c1c; }
@@ -143,57 +148,45 @@ class DriverDashboard(QWidget):
         driver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(driver_label)
 
-        # Collections Table
         self.collection_table = QTableWidget()
         self.collection_table.setColumnCount(7)
         self.collection_table.setHorizontalHeaderLabels([
             "HMJ Ref#", "HAZJNB Ref#", "Company", "Pickup Date", "Address", "Start", "Scan QR"
         ])
-        collections = []
-
-        for i, (hmj, hazjnb, comp, date, addr) in enumerate(collections):
-            self.collection_table.setItem(i, 0, QTableWidgetItem(hmj))
-            self.collection_table.setItem(i, 1, QTableWidgetItem(hazjnb))
-            self.collection_table.setItem(i, 2, QTableWidgetItem(comp))
-            self.collection_table.setItem(i, 3, QTableWidgetItem(date))
-            self.collection_table.setItem(i, 4, QTableWidgetItem(addr))
-
-            start_btn = QPushButton("Start")
-            start_btn.clicked.connect(lambda _, a=addr: self.open_gps(a))
-            self.collection_table.setCellWidget(i, 5, start_btn)
-
-            qr_btn = QPushButton("Scan QR")
-            qr_btn.clicked.connect(lambda _, r=hmj: self.scan_qr(r))
-            self.collection_table.setCellWidget(i, 6, qr_btn)
-
         layout.addWidget(QLabel("📦 Collections"))
         layout.addWidget(self.collection_table)
 
-        # Deliveries Table
         self.delivery_table = QTableWidget()
         self.delivery_table.setColumnCount(7)
         self.delivery_table.setHorizontalHeaderLabels([
             "HAZ Ref#", "HAZJNB Ref#", "Company", "Delivery Date", "Address", "Start", "Scan QR"
         ])
-        deliveries = []
-
-        for i, (haz, hazjnb, comp, date, addr) in enumerate(deliveries):
-            self.delivery_table.setItem(i, 0, QTableWidgetItem(haz))
-            self.delivery_table.setItem(i, 1, QTableWidgetItem(hazjnb))
-            self.delivery_table.setItem(i, 2, QTableWidgetItem(comp))
-            self.delivery_table.setItem(i, 3, QTableWidgetItem(date))
-            self.delivery_table.setItem(i, 4, QTableWidgetItem(addr))
-
-            start_btn = QPushButton("Start")
-            start_btn.clicked.connect(lambda _, a=addr: self.open_gps(a))
-            self.delivery_table.setCellWidget(i, 5, start_btn)
-
-            qr_btn = QPushButton("Scan QR")
-            qr_btn.clicked.connect(lambda _, r=haz: self.scan_qr(r))
-            self.delivery_table.setCellWidget(i, 6, qr_btn)
-
         layout.addWidget(QLabel("🚚 Deliveries"))
         layout.addWidget(self.delivery_table)
+
+        self.load_jobs()
+
+    def load_jobs(self):
+        try:
+            res = requests.get(f"{BACKEND_URL}/driver/{self.driver_code}")
+            jobs = res.json()
+            self.collection_table.setRowCount(len(jobs))
+            for i, job in enumerate(jobs):
+                self.collection_table.setItem(i, 0, QTableWidgetItem(job.get("hmj_ref", "")))
+                self.collection_table.setItem(i, 1, QTableWidgetItem(job["hazjnb_ref"]))
+                self.collection_table.setItem(i, 2, QTableWidgetItem(job["company"]))
+                self.collection_table.setItem(i, 3, QTableWidgetItem(job["pickup_date"]))
+                self.collection_table.setItem(i, 4, QTableWidgetItem(job["address"]))
+
+                start_btn = QPushButton("Start")
+                start_btn.clicked.connect(lambda _, a=job["address"]: self.open_gps(a))
+                self.collection_table.setCellWidget(i, 5, start_btn)
+
+                qr_btn = QPushButton("Scan QR")
+                qr_btn.clicked.connect(lambda _, r=job["hazjnb_ref"]: self.scan_qr(r))
+                self.collection_table.setCellWidget(i, 6, qr_btn)
+        except Exception as e:
+            print("❌ Failed to load jobs:", e)
 
     def open_gps(self, address):
         gps = GPSScreen(address)
@@ -214,14 +207,21 @@ class DriverDashboard(QWidget):
                     found = True
                     cap.release()
                     cv2.destroyAllWindows()
-                    self.mark_as_completed(expected_ref)
+                    try:
+                        requests.post(f"{BACKEND_URL}/scan_qr", json={
+                            "ref": expected_ref,
+                            "driver_id": self.driver_code
+                        })
+                        print("✅ Scan confirmed")
+                    except Exception as e:
+                        print("❌ Scan error:", e)
                     return
                 else:
                     cv2.putText(frame, "Invalid QR", (10, 30),
                                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
             cv2.imshow("Scan QR Code", frame)
-            if cv2.waitKey(1) == 27:  # ESC to cancel
+            if cv2.waitKey(1) == 27:
                 break
 
         cap.release()
@@ -234,7 +234,7 @@ def main():
     app = QApplication(sys.argv)
     login = DriverLogin()
     if login.exec():
-        driver_code = login.code_input.text()
+        driver_code = login.driver_code
         window = DriverDashboard(driver_code)
         window.show()
         sys.exit(app.exec())

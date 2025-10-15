@@ -200,6 +200,42 @@ def get_collections():
     ]
     return JSONResponse(content=data)
 
+@app.post("/assign")
+def assign_collection(payload: dict):
+    driver_code = payload.get("driver_code")
+    hazjnb_ref = payload.get("hazjnb_ref")
+
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE requests SET assigned_driver = ? WHERE reference_number = ?
+    """, (driver_code, hazjnb_ref))
+    conn.commit()
+    conn.close()
+
+    return {"status": "success", "driver": driver_code, "ref": hazjnb_ref}
+
+@app.get("/driver/{code}")
+def get_driver_jobs(code: str):
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT reference_number, collection_company, collection_address, pickup_date
+        FROM requests WHERE assigned_driver = ?
+    """, (code,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [
+        {
+            "hazjnb_ref": row[0],
+            "company": row[1],
+            "address": row[2],
+            "pickup_date": row[3]
+        }
+        for row in rows
+    ]
+
 def generate_pdf(data, request_id, qr_path, pdf_path):
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4

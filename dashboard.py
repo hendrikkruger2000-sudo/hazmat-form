@@ -161,11 +161,21 @@ class DashboardWindow(QMainWindow):
 
         def assign_driver_to_collection(self):
             if hasattr(self, "selected_driver_code") and hasattr(self, "selected_collection_row"):
-                driver_name = self.driver_table.item(0 if self.selected_driver_code == "NK" else 1, 0).text()
+                haz_ref = self.unassigned_table.item(self.selected_collection_row, 1).text().split(" ")[0]
+                driver_code = self.selected_driver_code
+
+                try:
+                    requests.post("https://hazmat-collection.onrender.com/assign", json={
+                        "driver_code": driver_code,
+                        "hazjnb_ref": haz_ref
+                    })
+                except Exception as e:
+                    print("Failed to push assignment:", e)
+
+                driver_name = self.driver_table.item(0 if driver_code == "NK" else 1, 0).text()
                 self.unassigned_table.setItem(self.selected_collection_row, 2, QTableWidgetItem(driver_name))
                 self.unassigned_table.setItem(self.selected_collection_row, 1, QTableWidgetItem(
-                    self.unassigned_table.item(self.selected_collection_row,
-                                               1).text() + f" ({self.selected_driver_code})"
+                    haz_ref + f" ({driver_code})"
                 ))
 
         def build_logo_header(self):
@@ -228,14 +238,13 @@ class DashboardWindow(QMainWindow):
             driver_label = QLabel("👤 Drivers")
             driver_label.setStyleSheet("color: #f2f2f2; font-size: 16px; font-weight: bold;")
             driver_layout.addWidget(driver_label)
-            self.load_live_collections()
             self.driver_table = QTableWidget()
             self.driver_table.setColumnCount(2)
             self.driver_table.setHorizontalHeaderLabels(["Driver", "Code"])
             self.driver_table.setRowCount(2)
-            self.driver_table.setItem(0, 0, QTableWidgetItem("Nikolas Renz"))
+            self.driver_table.setItem(0, 0, QTableWidgetItem("Ntivulo Khosa"))
             self.driver_table.setItem(0, 1, QTableWidgetItem("NK"))
-            self.driver_table.setItem(1, 0, QTableWidgetItem("Kenneth Ranaghan"))
+            self.driver_table.setItem(1, 0, QTableWidgetItem("Kenneth Rangata"))
             self.driver_table.setItem(1, 1, QTableWidgetItem("KR"))
             self.driver_table.cellClicked.connect(self.select_driver)
             self.driver_table.setMaximumHeight(100)
