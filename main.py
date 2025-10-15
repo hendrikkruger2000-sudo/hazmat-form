@@ -209,16 +209,24 @@ def assign_collection(payload: dict):
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
 
+    # Log incoming request
+    print(f"🚨 Assigning driver {driver_code} to reference {hazjnb_ref}")
+
+    # Run update
     cursor.execute("""
         UPDATE requests SET assigned_driver = ? WHERE reference_number = ?
     """, (driver_code, hazjnb_ref))
 
-    print(f"Assigning {hazjnb_ref} to driver {driver_code}")
-    print(f"Rows affected: {cursor.rowcount}")
-
     conn.commit()
+    affected = cursor.rowcount
     conn.close()
 
+    # Log result
+    if affected == 0:
+        print(f"❌ No matching reference_number found for {hazjnb_ref}")
+        return JSONResponse(content={"status": "error", "message": "Reference not found"}, status_code=404)
+
+    print(f"✅ Assignment succeeded for {hazjnb_ref}")
     return {"status": "success", "driver": driver_code, "ref": hazjnb_ref}
 
 @app.get("/driver/{code}")
