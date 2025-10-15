@@ -37,7 +37,8 @@ def init_db():
         inco_terms TEXT,
         client_notes TEXT,
         pdf_path TEXT,
-        timestamp TEXT
+        timestamp TEXT,
+        assigned_driver TEXT
     )
     """)
     conn.commit()
