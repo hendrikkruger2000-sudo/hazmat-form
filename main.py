@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import sqlite3, os
 from datetime import datetime
@@ -106,7 +106,8 @@ async def submit(request: Request):
         with open(f"static/uploads/{reference_number}_{file.filename}", "wb") as f:
             f.write(contents)
 
-    qr_url = f"https://hazmat-collection.onrender.com/confirm/{request_id}"
+    # ✅ QR code now links to HAZJNB reference number
+    qr_url = f"https://hazmat-collection.onrender.com/confirm/{reference_number}"
     qr_img = qrcode.make(qr_url)
     qr_path = f"static/qrcodes/qr_{request_id}.png"
     qr_img.save(qr_path)
@@ -136,12 +137,18 @@ async def submit(request: Request):
     conn.close()
 
     return HTMLResponse(f"""
-    <html><body>
-    <script>
-        window.open('/pdf/{request_id}', '_blank');
-        window.location.href = '/thankyou';
-    </script>
-    </body></html>
+    <html>
+      <head>
+        <script>
+          function openPDF() {{
+            window.open('/pdf/{request_id}', '_blank');
+            window.location.href = '/thankyou';
+          }}
+        </script>
+      </head>
+      <body onload="openPDF()">
+      </body>
+    </html>
     """)
 
 @app.get("/pdf/{request_id}")
@@ -164,29 +171,50 @@ def thank_you():
     </body></html>
     """)
 
-@app.get("/confirm/{request_id}", response_class=HTMLResponse)
-def confirm(request_id: int):
-    return HTMLResponse(f"<h1>Driver confirmed request #{request_id}</h1>")
+# ✅ QR confirmation now uses HAZJNB reference
+@app.get("/confirm/{hazjnb_ref}", response_class=HTMLResponse)
+def confirm(hazjnb_ref: str):
+    return HTMLResponse(f"<h1>Driver confirmed request {hazjnb_ref}</h1>")
+
+# ✅ New endpoint for operations dashboard
+@app.get("/ops/collections")
+def get_collections():
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT reference_number, collection_company, collection_address, pickup_date
+        FROM requests
+        ORDER BY timestamp DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+
+    data = [
+        {
+            "hazjnb_ref": row[0],
+            "company": row[1],
+            "address": row[2],
+            "pickup_date": row[3]
+        }
+        for row in rows
+    ]
+    return JSONResponse(content=data)
 
 def generate_pdf(data, request_id, qr_path, pdf_path):
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
 
-    # Background
     c.setFillColor(HexColor("#ECEFF1"))
     c.rect(0, 0, width, height, fill=1)
 
-    # Logo
     logo_path = "static/logo.png"
     if os.path.exists(logo_path):
         c.drawImage(logo_path, 20*mm, height - 30*mm, width=40*mm, height=20*mm, preserveAspectRatio=True, mask='auto')
 
-    # Header
     c.setFont("Helvetica-Bold", 22)
     c.setFillColor(HexColor("#D32F2F"))
     c.drawString(70*mm, height - 25*mm, "Hazmat Collection Waybill")
 
-    # Section Title
     def section(title, y):
         c.setFont("Helvetica-Bold", 14)
         c.setFillColor(HexColor("#455A64"))
@@ -195,16 +223,15 @@ def generate_pdf(data, request_id, qr_path, pdf_path):
         c.line(20*mm, y - 2*mm, width - 20*mm, y - 2*mm)
         return y - 10*mm
 
-    # Field Block
     def field(label, value, y):
         c.setFont("Helvetica", 10)
         c.setFillColor(HexColor("#212121"))
         c.drawString(25*mm, y, f"{label}:")
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(70*mm, y, value or "—")
-        return y - 7*mm
+        c.drawString(70 * mm, y, value or "—")
+        return y - 7 * mm
 
-    y = height - 50*mm
+    y = height - 50 * mm
     y = section("Shipment Details", y)
     y = field("Reference Number", data["reference_number"], y)
     y = field("Service Type", data["service_type"], y)
@@ -212,32 +239,33 @@ def generate_pdf(data, request_id, qr_path, pdf_path):
     y = field("Pickup Date", data["pickup_date"], y)
     y = field("Inco Terms", data["inco_terms"] or "N/A", y)
 
-    y -= 5*mm
+    y -= 5 * mm
     y = section("Collection", y)
     y = field("Company", data["collection_company"], y)
     y = field("Address", data["collection_address"], y)
     y = field("Contact Person", data["collection_person"], y)
     y = field("Contact Number", data["collection_number"], y)
 
-    y -= 5*mm
+    y -= 5 * mm
     y = section("Delivery", y)
     y = field("Company", data["delivery_company"], y)
     y = field("Address", data["delivery_address"], y)
     y = field("Contact Person", data["delivery_person"], y)
     y = field("Contact Number", data["delivery_number"], y)
 
-    y -= 5*mm
+    y -= 5 * mm
     y = section("Client Notes", y)
     c.setFont("Helvetica", 10)
-    c.drawString(25*mm, y, data["client_notes"] or "None")
+    c.setFillColor(HexColor("#212121"))
+    c.drawString(25 * mm, y, data["client_notes"] or "None")
 
     # QR Code
     if os.path.exists(qr_path):
-        c.drawImage(qr_path, width - 50*mm, 20*mm, width=30*mm, preserveAspectRatio=True, mask='auto')
+        c.drawImage(qr_path, width - 50 * mm, 20 * mm, width=30 * mm, preserveAspectRatio=True, mask='auto')
 
     # Footer
     c.setFont("Helvetica-Oblique", 8)
     c.setFillColor(HexColor("#607D8B"))
-    c.drawString(20*mm, 10*mm, "Generated by Hazmat Global Logistics System")
+    c.drawString(20 * mm, 10 * mm, "Generated by Hazmat Global Logistics System")
 
     c.save()
