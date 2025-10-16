@@ -203,7 +203,7 @@ class DriverDashboard(QWidget):
 
             for barcode in decode(frame):
                 qr_data = barcode.data.decode('utf-8')
-                if qr_data == expected_ref:
+                if qr_data.endswith(expected_ref):
                     found = True
                     cap.release()
                     cv2.destroyAllWindows()

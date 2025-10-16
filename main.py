@@ -184,9 +184,9 @@ def get_collections():
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT reference_number, collection_company, collection_address, pickup_date, status
+        SELECT reference_number, collection_company, collection_address, pickup_date, assigned_driver, status
         FROM requests
-        WHERE assigned_driver IS NULL OR assigned_driver = ''
+        WHERE status IS NOT 'Delivered'
         ORDER BY timestamp DESC
     """)
     rows = cursor.fetchall()
@@ -197,7 +197,9 @@ def get_collections():
             "hazjnb_ref": row[0],
             "company": row[1],
             "address": row[2],
-            "pickup_date": row[3]
+            "pickup_date": row[3],
+            "driver": row[4] or "Unassigned",
+            "status": row[5] or "Pending"
         }
         for row in rows
     ]
