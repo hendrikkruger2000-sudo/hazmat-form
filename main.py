@@ -47,6 +47,10 @@ def init_db():
 
 init_db()
 
+@app.get("/ping")
+def ping():
+    return {"status": "awake"}
+
 @app.get("/", response_class=HTMLResponse)
 async def form():
     with open("templates/form.html", "r", encoding="utf-8") as f:
