@@ -10,6 +10,7 @@ from PyQt6.QtGui import QDesktopServices, QPixmap
 from PyQt6.QtCore import QUrl
 from PyQt6.QtWidgets import QGridLayout
 import requests
+from PyQt6.QtCore import QTimer
 
 class LoginDialog(QDialog):
     def __init__(self):
@@ -132,6 +133,10 @@ class DashboardWindow(QMainWindow):
             self.user_code = user_code
             self.init_ui()
 
+        def start_auto_refresh(self):
+                self.refresh_timer = QTimer()
+                self.refresh_timer.timeout.connect(self.refresh_all_tabs)
+                self.refresh_timer.start(5000)  # every 5 seconds
 
         def load_live_collections(self):
             try:
@@ -206,6 +211,66 @@ class DashboardWindow(QMainWindow):
             self.tabs.addTab(self.build_updates_tab(), "Client Updates")
             self.tabs.addTab(self.build_completed_tab(), "Completed Shipments")
             self.setCentralWidget(self.tabs)
+            self.start_auto_refresh()
+
+        def refresh_all_tabs(self):
+            self.load_live_collections()
+            self.refresh_collections_tab()
+            self.refresh_updates_tab()
+            self.refresh_completed_tab()
+
+        def refresh_collections_tab(self):
+            try:
+                response = requests.get("https://hazmat-collection.onrender.com/ops/assigned")
+                if response.status_code == 200:
+                    data = response.json()
+                    self.collections_table.setRowCount(len(data))
+                    for i, item in enumerate(data):
+                        self.collections_table.setItem(i, 0, QTableWidgetItem(item.get("hmj_ref", "HMJ—")))
+                        self.collections_table.setItem(i, 1, QTableWidgetItem(item["hazjnb_ref"]))
+                        self.collections_table.setItem(i, 2, QTableWidgetItem(item["company"]))
+                        self.collections_table.setItem(i, 3, QTableWidgetItem(item["pickup_date"]))
+                        self.collections_table.setItem(i, 4, QTableWidgetItem(item["driver"]))
+                        self.collections_table.setItem(i, 5, QTableWidgetItem(item.get("status", "Assigned")))
+            except Exception as e:
+                print("❌ Failed to refresh collections:", e)
+
+        def refresh_updates_tab(self):
+            try:
+                response = requests.get("https://hazmat-collection.onrender.com/ops/updates")
+                if response.status_code == 200:
+                    updates = response.json()
+                    self.update_table.setRowCount(len(updates))
+                    for i, u in enumerate(updates):
+                        if self.role == "admin" or u["ops"] == self.user_code:
+                            self.update_table.setItem(i, 0, QTableWidgetItem(u["ops"]))
+                            self.update_table.setItem(i, 1, QTableWidgetItem(u["hmj"]))
+                            self.update_table.setItem(i, 2, QTableWidgetItem(u["haz"]))
+                            self.update_table.setItem(i, 3, QTableWidgetItem(u["company"]))
+                            self.update_table.setItem(i, 4, QTableWidgetItem(u["date"]))
+                            self.update_table.setItem(i, 5, QTableWidgetItem(u["time"]))
+                            update_item = QTableWidgetItem(u["update"])
+                            update_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+                            self.update_table.setItem(i, 6, update_item)
+            except Exception as e:
+                print("❌ Failed to refresh updates:", e)
+
+        def refresh_completed_tab(self):
+            try:
+                response = requests.get("https://hazmat-collection.onrender.com/ops/completed")
+                if response.status_code == 200:
+                    completed = response.json()
+                    self.completed_table.setRowCount(len(completed))
+                    for i, c in enumerate(completed):
+                        self.completed_table.setItem(i, 0, QTableWidgetItem(c["ops"]))
+                        self.completed_table.setItem(i, 1, QTableWidgetItem(c["company"]))
+                        self.completed_table.setItem(i, 2, QTableWidgetItem(c["delivery_date"]))
+                        self.completed_table.setItem(i, 3, QTableWidgetItem(c["time"]))
+                        self.completed_table.setItem(i, 4, QTableWidgetItem(c["signed_by"]))
+                        self.completed_table.setItem(i, 5, QTableWidgetItem(c["document"]))
+                        self.completed_table.setItem(i, 6, QTableWidgetItem(c["pod"]))
+            except Exception as e:
+                print("❌ Failed to refresh completed shipments:", e)
 
         def build_map_tab(self):
             tab = QWidget()
@@ -312,6 +377,7 @@ class DashboardWindow(QMainWindow):
             main_layout.addWidget(self.map_view)
             self.load_live_collections()
             return tab
+
 
         def build_collections_tab(self):
             tab = QWidget()

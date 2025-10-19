@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Form, Request, UploadFile
+# main.py
+from fastapi import FastAPI, Request, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import sqlite3, os
@@ -42,6 +43,38 @@ def init_db():
         status TEXT
     )
     """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS scan_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference_number TEXT,
+        driver_id TEXT,
+        timestamp TEXT
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS updates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ops TEXT,
+        hmj TEXT,
+        haz TEXT,
+        company TEXT,
+        date TEXT,
+        time TEXT,
+        update TEXT
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS completed (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ops TEXT,
+        company TEXT,
+        delivery_date TEXT,
+        time TEXT,
+        signed_by TEXT,
+        document TEXT,
+        pod TEXT
+    )
+    """)
     conn.commit()
     conn.close()
 
@@ -51,10 +84,126 @@ init_db()
 def ping():
     return {"status": "awake"}
 
-@app.get("/", response_class=HTMLResponse)
-async def form():
-    with open("templates/form.html", "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+@app.get("/ops/unassigned")
+def get_unassigned():
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT reference_number, collection_company, collection_address, pickup_date
+        FROM requests WHERE assigned_driver IS NULL AND status IS NOT 'Delivered'
+        ORDER BY timestamp DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"hazjnb_ref": r[0], "company": r[1], "address": r[2], "pickup_date": r[3]} for r in rows]
+
+@app.get("/ops/assigned")
+def get_assigned():
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT reference_number, collection_company, collection_address, pickup_date, assigned_driver, status
+        FROM requests WHERE assigned_driver IS NOT NULL AND status IS NOT 'Delivered'
+        ORDER BY timestamp DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"hazjnb_ref": r[0], "company": r[1], "address": r[2], "pickup_date": r[3], "driver": r[4], "status": r[5]} for r in rows]
+
+@app.get("/driver/{code}")
+def get_driver_jobs(code: str):
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT reference_number, collection_company, collection_address, pickup_date
+        FROM requests WHERE assigned_driver = ?
+    """, (code,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"hazjnb_ref": r[0], "company": r[1], "address": r[2], "pickup_date": r[3]} for r in rows]
+
+@app.post("/assign")
+def assign_driver(payload: dict):
+    haz_ref = payload["hazjnb_ref"]
+    driver_code = payload["driver_code"]
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE requests SET assigned_driver = ?, status = 'Assigned' WHERE reference_number = ?
+    """, (driver_code, haz_ref))
+    conn.commit()
+    conn.close()
+    return {"status": "assigned"}
+
+@app.post("/scan_qr")
+def scan_qr(payload: dict):
+    ref = payload.get("ref")
+    driver_id = payload.get("driver_id")
+    timestamp = datetime.now().isoformat()
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO scan_log (reference_number, driver_id, timestamp) VALUES (?, ?, ?)
+    """, (ref, driver_id, timestamp))
+    cursor.execute("""
+        UPDATE requests SET status = 'Collected' WHERE reference_number = ?
+    """, (ref,))
+    conn.commit()
+    conn.close()
+    return {"status": "collected", "ref": ref, "driver": driver_id}
+
+@app.post("/ops/updates")
+def submit_update(payload: dict):
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO updates (ops, hmj, haz, company, date, time, update)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        payload["ops"], payload["hmj"], payload["haz"], payload["company"],
+        payload["date"], payload["time"], payload["update"]
+    ))
+    conn.commit()
+    conn.close()
+    return {"status": "update received"}
+
+@app.get("/ops/updates")
+def get_updates():
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT ops, hmj, haz, company, date, time, update FROM updates ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"ops": r[0], "hmj": r[1], "haz": r[2], "company": r[3], "date": r[4], "time": r[5], "update": r[6]} for r in rows]
+
+@app.post("/ops/completed")
+def submit_completed(payload: dict):
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO completed (ops, company, delivery_date, time, signed_by, document, pod)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        payload["ops"], payload["company"], payload["delivery_date"], payload["time"],
+        payload["signed_by"], payload["document"], payload["pod"]
+    ))
+    cursor.execute("""
+        UPDATE requests SET status = 'Delivered' WHERE reference_number = ?
+    """, (payload["haz_ref"],))
+    conn.commit()
+    conn.close()
+    return {"status": "completed"}
+
+@app.get("/ops/completed")
+def get_completed():
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT ops, company, delivery_date, time, signed_by, document, pod FROM completed ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"ops": r[0], "company": r[1], "delivery_date": r[2], "time": r[3], "signed_by": r[4], "document": r[5], "pod": r[6]} for r in rows]
+
+# Remaining routes: /submit, /pdf/{id}, /confirm/{ref}, /thankyou, generate_pdf — already correct in your version
 
 @app.post("/submit")
 async def submit(request: Request):
@@ -182,32 +331,6 @@ def thank_you():
 def confirm(hazjnb_ref: str):
     return HTMLResponse(f"<h1>Driver confirmed request {hazjnb_ref}</h1>")
 
-# ✅ New endpoint for operations dashboard
-@app.get("/ops/collections")
-def get_collections():
-    conn = sqlite3.connect("hazmat.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT reference_number, collection_company, collection_address, pickup_date, assigned_driver, status
-        FROM requests
-        WHERE status IS NOT 'Delivered'
-        ORDER BY timestamp DESC
-    """)
-    rows = cursor.fetchall()
-    conn.close()
-
-    data = [
-        {
-            "hazjnb_ref": row[0],
-            "company": row[1],
-            "address": row[2],
-            "pickup_date": row[3],
-            "driver": row[4] or "Unassigned",
-            "status": row[5] or "Pending"
-        }
-        for row in rows
-    ]
-    return JSONResponse(content=data)
 
 @app.post("/assign")
 def assign_collection(payload: dict):
