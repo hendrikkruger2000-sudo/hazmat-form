@@ -136,6 +136,25 @@ def get_unassigned():
     conn.close()
     return [{"hazjnb_ref": r[0], "company": r[1], "address": r[2], "pickup_date": r[3]} for r in rows]
 
+@app.get("/ops/collections")
+def get_available_collections():
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT reference_number, collection_company, collection_address, pickup_date
+        FROM requests
+        WHERE assigned_driver IS NULL AND status IS NOT 'Delivered'
+        ORDER BY timestamp DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [{
+        "hazjnb_ref": r[0],
+        "company": r[1],
+        "address": r[2],
+        "pickup_date": r[3]
+    } for r in rows]
+
 @app.get("/submit", response_class=HTMLResponse)
 def submit_form():
     return """
