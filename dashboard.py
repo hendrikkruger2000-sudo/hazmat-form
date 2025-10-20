@@ -276,7 +276,7 @@ class DashboardWindow(QMainWindow):
 
         def refresh_collections_tab(self):
             try:
-                response = requests.get("https://hazmat-collection.onrender.com/ops/collections")
+                response = requests.get("https://hazmat-collection.onrender.com/ops/assigned")
                 if response.status_code == 200:
                     data = response.json()
 

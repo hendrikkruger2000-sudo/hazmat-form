@@ -189,7 +189,7 @@ def submit_update(payload: dict):
 def get_updates():
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT ops, hmj, haz, company, date, time, update FROM updates ORDER BY id DESC")
+    cursor.execute('SELECT ops, hmj, haz, company, date, time, "update" FROM updates ORDER BY id DESC')
     rows = cursor.fetchall()
     conn.close()
     return [{"ops": r[0], "hmj": r[1], "haz": r[2], "company": r[3], "date": r[4], "time": r[5], "update": r[6]} for r in rows]
