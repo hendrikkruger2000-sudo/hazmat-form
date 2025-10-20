@@ -47,6 +47,37 @@ def init_db():
         );""")
         print("✅ completed table created")
 
+        cursor.execute("""CREATE TABLE IF NOT EXISTS requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reference_number TEXT,
+            service_type TEXT,
+            collection_company TEXT,
+            collection_address TEXT,
+            collection_person TEXT,
+            collection_number TEXT,
+            delivery_company TEXT,
+            delivery_address TEXT,
+            delivery_person TEXT,
+            delivery_number TEXT,
+            client_reference TEXT,
+            pickup_date TEXT,
+            inco_terms TEXT,
+            client_notes TEXT,
+            pdf_path TEXT,
+            timestamp TEXT,
+            assigned_driver TEXT,
+            status TEXT
+        );""")
+        print("✅ requests table created")
+
+        cursor.execute("""CREATE TABLE IF NOT EXISTS scan_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reference_number TEXT,
+            driver_id TEXT,
+            timestamp TEXT
+        );""")
+        print("✅ scan_log table created")
+
         conn.commit()
         conn.close()
         print("✅ hazmat.db initialized")
