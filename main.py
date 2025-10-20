@@ -19,84 +19,41 @@ os.makedirs("static/uploads", exist_ok=True)
 
 def init_db():
     import sqlite3
-
     try:
         conn = sqlite3.connect("hazmat.db")
         cursor = conn.cursor()
 
-        # 🚀 Create requests table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS requests (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                reference_number TEXT,
-                service_type TEXT,
-                collection_company TEXT,
-                collection_address TEXT,
-                collection_person TEXT,
-                collection_number TEXT,
-                delivery_company TEXT,
-                delivery_address TEXT,
-                delivery_person TEXT,
-                delivery_number TEXT,
-                client_reference TEXT,
-                pickup_date TEXT,
-                inco_terms TEXT,
-                client_notes TEXT,
-                pdf_path TEXT,
-                timestamp TEXT,
-                assigned_driver TEXT,
-                status TEXT
-            );
-        """)
-        print("✅ requests table ready")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ops TEXT,
+            hmj TEXT,
+            haz TEXT,
+            company TEXT,
+            date TEXT,
+            time TEXT,
+            "update" TEXT
+        );""")
+        print("✅ updates table created")
 
-        # 🚀 Create scan_log table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS scan_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                reference_number TEXT,
-                driver_id TEXT,
-                timestamp TEXT
-            );
-        """)
-        print("✅ scan_log table ready")
-
-        # 🚀 Create updates table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS updates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ops TEXT,
-                hmj TEXT,
-                haz TEXT,
-                company TEXT,
-                date TEXT,
-                time TEXT,
-                update TEXT
-            );
-        """)
-        print("✅ updates table ready")
-
-        # 🚀 Create completed table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS completed (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ops TEXT,
-                company TEXT,
-                delivery_date TEXT,
-                time TEXT,
-                signed_by TEXT,
-                document TEXT,
-                pod TEXT
-            );
-        """)
-        print("✅ completed table ready")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS completed (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ops TEXT,
+            company TEXT,
+            delivery_date TEXT,
+            time TEXT,
+            signed_by TEXT,
+            document TEXT,
+            pod TEXT
+        );""")
+        print("✅ completed table created")
 
         conn.commit()
         conn.close()
-        print("✅ Database initialized successfully")
-
+        print("✅ hazmat.db initialized")
     except Exception as e:
         print("❌ init_db() failed:", e)
+
+init_db()
 
 @app.get("/ping")
 def ping():
