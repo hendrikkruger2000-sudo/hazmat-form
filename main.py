@@ -1,6 +1,6 @@
 # main.py
 from fastapi import FastAPI, Request, UploadFile
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import sqlite3, os
 from datetime import datetime
@@ -86,6 +86,39 @@ def init_db():
 
 init_db()
 
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return """
+    <html>
+      <head>
+        <title>Hazmat Collection System</title>
+        <link rel="icon" href="/icon.png" type="image/png">
+        <style>
+          body { font-family:Segoe UI; text-align:center; padding:2rem; background:#ECEFF1; }
+          h1 { color:#D32F2F; }
+          p { color:#455A64; }
+          button {
+            margin:1rem; padding:0.75rem 1.5rem;
+            background-color:#388E3C; color:white;
+            border:none; border-radius:4px;
+            font-size:1rem;
+          }
+        </style>
+      </head>
+      <body>
+        <img src="/logo.png" alt="Hazmat Logo" style="width:150px; margin-bottom:1rem;">
+        <h1>Welcome to Hazmat Collection System</h1>
+        <p>Choose an action below:</p>
+        <button onclick="window.location.href='/submit'">Book a Collection</button>
+        <button onclick="window.location.href='/track'">Track a Collection</button>
+      </body>
+    </html>
+    """
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse("static/icon.png")
+
 @app.get("/ping")
 def ping():
     return {"status": "awake"}
@@ -102,6 +135,71 @@ def get_unassigned():
     rows = cursor.fetchall()
     conn.close()
     return [{"hazjnb_ref": r[0], "company": r[1], "address": r[2], "pickup_date": r[3]} for r in rows]
+
+@app.get("/submit", response_class=HTMLResponse)
+def submit_form():
+    return """
+    <html>
+      <head>
+        <title>Book a Hazmat Collection</title>
+        <link rel="icon" href="/icon.png" type="image/png">
+        <style>
+          body { font-family:Segoe UI; padding:2rem; background:#ECEFF1; }
+          h1 { color:#D32F2F; text-align:center; }
+          form { max-width:600px; margin:auto; background:white; padding:2rem; border-radius:8px; }
+          label { display:block; margin-top:1rem; font-weight:bold; }
+          input, textarea, select {
+            width:100%; padding:0.5rem; margin-top:0.5rem;
+            border:1px solid #B0BEC5; border-radius:4px;
+          }
+          button {
+            margin-top:2rem; padding:0.75rem 1.5rem;
+            background-color:#388E3C; color:white;
+            border:none; border-radius:4px;
+            font-size:1rem;
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Book a Hazmat Collection</h1>
+        <form action="/submit" method="post" enctype="multipart/form-data">
+          <label>Service Type</label>
+          <select name="serviceType">
+            <option value="local">Local</option>
+            <option value="export">Export</option>
+            <option value="import">Import</option>
+          </select>
+
+          <label>Collection Company</label>
+          <input type="text" name="collection_company_local">
+
+          <label>Collection Address</label>
+          <input type="text" name="collection_address_local">
+
+          <label>Pickup Date</label>
+          <input type="date" name="pickup_date_local">
+
+          <label>Delivery Company</label>
+          <input type="text" name="delivery_company_local">
+
+          <label>Delivery Address</label>
+          <input type="text" name="delivery_address_local">
+
+          <label>Client Reference</label>
+          <input type="text" name="client_reference_local">
+
+          <label>Client Notes</label>
+          <textarea name="client_notes_local"></textarea>
+
+          <label>Shipment Documents</label>
+          <input type="file" name="shipment_docs" multiple>
+
+          <button type="submit">Submit Collection Request</button>
+        </form>
+      </body>
+    </html>
+    """
+
 
 @app.get("/ops/assigned")
 def get_assigned():
