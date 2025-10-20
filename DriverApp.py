@@ -21,6 +21,7 @@ import numpy as np
 from pyzbar.pyzbar import decode
 from kivy.graphics.texture import Texture
 from geopy.geocoders import Nominatim
+from kivy.graphics import Line
 import cv2
 
 
@@ -263,8 +264,12 @@ class CameraScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical')
-        self.camera = Camera(play=False, resolution=(640, 480))
-        self.layout.add_widget(self.camera)
+        try:
+            self.camera = Camera(play=False, resolution=(640, 480))
+            self.layout.add_widget(self.camera)
+        except Exception as e:
+            self.layout.add_widget(Label(text="❌ No camera detected", font_size=18, color=(1, 0.5, 0.5, 1)))
+            print(f"Camera init failed: {e}")
         self.add_widget(self.layout)
         self.scanning = False
 

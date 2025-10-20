@@ -11,6 +11,8 @@ from PyQt6.QtCore import QUrl
 from PyQt6.QtWidgets import QGridLayout
 import requests
 from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QSplitter
+from PyQt6.QtGui import QPalette, QColor
 
 class LoginDialog(QDialog):
     def __init__(self):
@@ -69,13 +71,16 @@ class LoginDialog(QDialog):
 
         self.role = None
         self.user_code = None
+        self.selected_driver_row = None
+        self.selected_collection_row = None
+        self.selected_driver_code = None
 
     def handle_login(self):
         users = {
-            "hendrik": {"password": "hkpass", "role": "user", "code": "HK"},
-            "morne": {"password": "mvpass", "role": "user", "code": "MV"},
-            "justin": {"password": "jbpass", "role": "user", "code": "JB"},
-            "admin": {"password": "adminpass", "role": "admin", "code": "ALL"}
+            "hendrik": {"password": "hendrik", "role": "user", "code": "HK"},
+            "morne": {"password": "morne", "role": "user", "code": "MV"},
+            "justin": {"password": "justin", "role": "user", "code": "JB"},
+            "admin": {"password": "admin", "role": "admin", "code": "ALL"}
         }
 
         username = self.username_input.text().lower()
@@ -136,65 +141,105 @@ class DashboardWindow(QMainWindow):
         def start_auto_refresh(self):
                 self.refresh_timer = QTimer()
                 self.refresh_timer.timeout.connect(self.refresh_all_tabs)
-                self.refresh_timer.start(5000)  # every 5 seconds
+                self.refresh_timer.start(15000)  # every 5 seconds
 
         def load_live_collections(self):
             try:
-                response = requests.get("https://hazmat-collection.onrender.com/ops/collections")
+                response = requests.get("https://hazmat-collection.onrender.com/ops/assigned")
                 if response.status_code == 200:
                     data = response.json()
-                    self.unassigned_table.setRowCount(len(data))
-                    for i, item in enumerate(data):
-                        self.unassigned_table.setItem(i, 0, QTableWidgetItem("HMJ—"))  # Placeholder
-                        self.unassigned_table.setItem(i, 1, QTableWidgetItem(item["hazjnb_ref"]))
-                        self.unassigned_table.setItem(i, 2, QTableWidgetItem(item["company"]))
-                        self.unassigned_table.setItem(i, 3, QTableWidgetItem(item["pickup_date"]))
-                        self.unassigned_table.setItem(i, 4, QTableWidgetItem(item["address"]))
+
+                    # ✅ Filter by driver status instead of collection status
+                    unassigned = [
+                        item for item in data
+                        if (not item.get("assigned_driver") or item["assigned_driver"] == "Unassigned")
+                           and item.get("status") != "Delivered"
+                    ]
+
+
+                    if unassigned:
+                        self.unassigned_table.setRowCount(len(unassigned))
+                        for i, item in enumerate(unassigned):
+                            self.unassigned_table.setItem(i, 0, QTableWidgetItem(item.get("hazjnb_ref", "—")))
+                            self.unassigned_table.setItem(i, 1, QTableWidgetItem(item.get("company", "—")))
+                            self.unassigned_table.setItem(i, 2, QTableWidgetItem(item.get("pickup_date", "—")))
+                            self.unassigned_table.setItem(i, 3, QTableWidgetItem(item.get("address", "—")))
+                    else:
+                        self.unassigned_table.setRowCount(1)
+                        self.unassigned_table.setItem(0, 0, QTableWidgetItem("No unassigned collections"))
+                        self.unassigned_table.setSpan(0, 0, 1, 4)
             except Exception as e:
                 print("Failed to load collections from live site:", e)
 
         def select_driver(self, row, column):
-            self.selected_driver_code = self.driver_table.item(row, 1).text()
+            if self.selected_driver_row == row:
+                self.driver_table.clearSelection()
+                self.selected_driver_row = None
+                self.selected_driver_code = None
+            else:
+                self.driver_table.selectRow(row)
+                self.selected_driver_row = row
+                self.selected_driver_code = self.driver_table.item(row, 1).text()
+            self.update_selection_label()
 
         def select_collection(self, row, column):
-            self.selected_collection_row = row
-            address = self.unassigned_table.item(row, 4).text()
-            encoded = address.replace(" ", "+")
-            maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded}"
-            self.map_view.setText(f"<a href='{maps_url}' style='color:#f2f2f2;'>View on Google Maps</a>")
-            self.map_view.setOpenExternalLinks(True)
+            item = self.unassigned_table.item(row, 3)
+            if not item or item.text() == "No unassigned collections":
+                return
+
+            # Toggle logic
+            if self.selected_collection_row == row:
+                self.unassigned_table.clearSelection()
+                self.selected_collection_row = None
+                self.map_view.setText("🗺️ Driver location map placeholder")
+            else:
+                self.unassigned_table.selectRow(row)
+                self.selected_collection_row = row
+
+                # Update map
+                address = item.text()
+                encoded = address.replace(" ", "+")
+                maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded}"
+                self.map_view.setText(f"<a href='{maps_url}' style='color:#f2f2f2;'>View on Google Maps</a>")
+                self.map_view.setOpenExternalLinks(True)
+
+            self.update_selection_label()
+
+        def update_selection_label(self):
+            driver = self.driver_table.item(self.selected_driver_row,
+                                            0).text() if self.selected_driver_row is not None else "None"
+            company = self.unassigned_table.item(self.selected_collection_row,
+                                                 1).text() if self.selected_collection_row is not None else "None"
+            self.selection_label.setText(f"Selected: {driver} → {company}")
 
         def assign_driver_to_collection(self):
-            if hasattr(self, "selected_driver_code") and hasattr(self, "selected_collection_row"):
-                row = self.selected_collection_row
-                haz_ref = self.unassigned_table.item(row, 1).text()
-                company = self.unassigned_table.item(row, 2).text()
-                pickup_date = self.unassigned_table.item(row, 3).text()
-                address = self.unassigned_table.item(row, 4).text()
-                driver_code = self.selected_driver_code
-                driver_name = self.driver_table.item(0 if driver_code == "NK" else 1, 0).text()
+            if self.selected_driver_row is None or self.selected_collection_row is None:
+                self.selection_label.setText("⚠️ Please select both a driver and a collection")
+                return
 
-                # ✅ Send to backend
-                try:
-                    requests.post("https://hazmat-collection.onrender.com/assign", json={
-                        "driver_code": driver_code,
-                        "hazjnb_ref": haz_ref
-                    })
-                except Exception as e:
-                    print("❌ Failed to push assignment:", e)
+            # 🔍 Get selected collection ID
+            haz_ref = self.unassigned_table.item(self.selected_collection_row, 0).text()
+            driver_code = self.selected_driver_code
 
-                # ✅ Remove from unassigned table
-                self.unassigned_table.removeRow(row)
+            # 🔁 Send update to backend
+            try:
+                requests.post("https://hazmat-collection.onrender.com/assign", json={
+                    "driver_code": driver_code,
+                    "hazjnb_ref": haz_ref
+                })
+            except Exception as e:
+                print("❌ Failed to push assignment:", e)
 
-                # ✅ Add to collections tab
-                new_row = self.collections_table.rowCount()
-                self.collections_table.insertRow(new_row)
-                self.collections_table.setItem(new_row, 0, QTableWidgetItem("HMJ—"))  # Placeholder
-                self.collections_table.setItem(new_row, 1, QTableWidgetItem(haz_ref))
-                self.collections_table.setItem(new_row, 2, QTableWidgetItem(company))
-                self.collections_table.setItem(new_row, 3, QTableWidgetItem(pickup_date))
-                self.collections_table.setItem(new_row, 4, QTableWidgetItem(driver_name))
-                self.collections_table.setItem(new_row, 5, QTableWidgetItem("Assigned"))
+            # ✅ Reset selections
+            self.driver_table.clearSelection()
+            self.unassigned_table.clearSelection()
+            self.selected_driver_row = None
+            self.selected_collection_row = None
+            self.selected_driver_code = None
+            self.map_view.setText("🗺️ Driver location map placeholder")
+
+            # 🔄 Refresh table
+            self.load_live_collections()
 
         def build_logo_header(self):
                 logo = QLabel()
@@ -212,6 +257,16 @@ class DashboardWindow(QMainWindow):
             self.tabs.addTab(self.build_completed_tab(), "Completed Shipments")
             self.setCentralWidget(self.tabs)
             self.start_auto_refresh()
+            self.tabs.currentChanged.connect(self.reset_driver_tab_selection)
+
+        def reset_driver_tab_selection(self, index):
+            if self.tabs.tabText(index) == "Select Driver":
+                self.driver_table.clearSelection()
+                self.unassigned_table.clearSelection()
+                self.selected_driver_row = None
+                self.selected_collection_row = None
+                self.selected_driver_code = None
+                self.selection_label.setText("No selection made")
 
         def refresh_all_tabs(self):
             self.load_live_collections()
@@ -221,16 +276,20 @@ class DashboardWindow(QMainWindow):
 
         def refresh_collections_tab(self):
             try:
-                response = requests.get("https://hazmat-collection.onrender.com/ops/assigned")
+                response = requests.get("https://hazmat-collection.onrender.com/ops/collections")
                 if response.status_code == 200:
                     data = response.json()
-                    self.collections_table.setRowCount(len(data))
-                    for i, item in enumerate(data):
+
+                    # ✅ Filter only collections with assigned drivers
+                    assigned = [item for item in data if item.get("driver") and item["driver"] != "Unassigned"]
+
+                    self.collections_table.setRowCount(len(assigned))
+                    for i, item in enumerate(assigned):
                         self.collections_table.setItem(i, 0, QTableWidgetItem(item.get("hmj_ref", "HMJ—")))
-                        self.collections_table.setItem(i, 1, QTableWidgetItem(item["hazjnb_ref"]))
-                        self.collections_table.setItem(i, 2, QTableWidgetItem(item["company"]))
-                        self.collections_table.setItem(i, 3, QTableWidgetItem(item["pickup_date"]))
-                        self.collections_table.setItem(i, 4, QTableWidgetItem(item["driver"]))
+                        self.collections_table.setItem(i, 1, QTableWidgetItem(item.get("hazjnb_ref", "—")))
+                        self.collections_table.setItem(i, 2, QTableWidgetItem(item.get("company", "—")))
+                        self.collections_table.setItem(i, 3, QTableWidgetItem(item.get("pickup_date", "—")))
+                        self.collections_table.setItem(i, 4, QTableWidgetItem(item.get("driver", "—")))
                         self.collections_table.setItem(i, 5, QTableWidgetItem(item.get("status", "Assigned")))
             except Exception as e:
                 print("❌ Failed to refresh collections:", e)
@@ -300,22 +359,28 @@ class DashboardWindow(QMainWindow):
 
         def build_driver_tab(self):
             tab = QWidget()
-            main_layout = QVBoxLayout(tab)
-            main_layout.setContentsMargins(20, 10, 20, 10)
-            main_layout.setSpacing(10)
+            layout = QVBoxLayout(tab)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
 
-            # Logo
+            # 🔥 Logo
             logo = QLabel()
             pixmap = QPixmap("static/logo.png")
-            logo.setPixmap(pixmap.scaled(160, 32, Qt.AspectRatioMode.KeepAspectRatio))
+            logo.setPixmap(pixmap.scaledToHeight(60))
             logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            main_layout.addWidget(logo)
+            layout.addWidget(logo)
 
-            # Top: Driver List (horizontal)
-            driver_layout = QHBoxLayout()
-            driver_label = QLabel("👤 Drivers")
-            driver_label.setStyleSheet("color: #f2f2f2; font-size: 16px; font-weight: bold;")
-            driver_layout.addWidget(driver_label)
+            # 🔀 Splitter: Top (tables) vs Bottom (map)
+            splitter = QSplitter(Qt.Orientation.Vertical)
+            splitter.setHandleWidth(2)
+
+            # 🔼 Top Widget: Driver + Collection Tables
+            top_widget = QWidget()
+            top_layout = QHBoxLayout(top_widget)
+            top_layout.setContentsMargins(20, 10, 20, 10)
+            top_layout.setSpacing(20)
+
+            # 👤 Driver Table
             self.driver_table = QTableWidget()
             self.driver_table.setColumnCount(2)
             self.driver_table.setHorizontalHeaderLabels(["Driver", "Code"])
@@ -325,48 +390,65 @@ class DashboardWindow(QMainWindow):
             self.driver_table.setItem(1, 0, QTableWidgetItem("Kenneth Rangata"))
             self.driver_table.setItem(1, 1, QTableWidgetItem("KR"))
             self.driver_table.cellClicked.connect(self.select_driver)
-            self.driver_table.setMaximumHeight(100)
-            driver_layout.addWidget(self.driver_table)
-            main_layout.addLayout(driver_layout)
+            self.driver_table.setFixedHeight(160)
+            self.driver_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+            self.driver_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+            top_layout.addWidget(self.driver_table)
 
-            # Middle: Collections Table + Assign Button
-            collection_layout = QVBoxLayout()
-            collection_label = QLabel("📦 New Collection Requests")
-            collection_label.setStyleSheet("color: #f2f2f2; font-size: 16px; font-weight: bold;")
-            collection_layout.addWidget(collection_label)
-
+            # 📦 Collection Table
             self.unassigned_table = QTableWidget()
-            self.unassigned_table.setColumnCount(5)
-            self.unassigned_table.setHorizontalHeaderLabels([
-                "HMJ Ref#", "HAZ Ref#", "Company", "Pickup Date", "Address"
-            ])
-            self.unassigned_table.setRowCount(2)
+            self.unassigned_table.setColumnCount(4)
+            self.unassigned_table.setHorizontalHeaderLabels(["HAZ Ref#", "Company", "Pickup Date", "Address"])
             self.unassigned_table.cellClicked.connect(self.select_collection)
-            self.unassigned_table.setMaximumHeight(140)
-            collection_layout.addWidget(self.unassigned_table)
+            self.unassigned_table.setFixedHeight(160)
+            self.unassigned_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+            self.unassigned_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+            top_layout.addWidget(self.unassigned_table)
 
+            # 🎨 Red highlight styling
+            red_style = """
+                QTableWidget::item:selected {
+                    background-color: #cc0000;
+                    color: #ffffff;
+                }
+            """
+            self.driver_table.setStyleSheet(red_style)
+            self.unassigned_table.setStyleSheet(red_style)
+
+            splitter.addWidget(top_widget)
+
+            # 🔻 Bottom Widget: Map + Assign Controls
+            bottom_widget = QWidget()
+            bottom_layout = QVBoxLayout(bottom_widget)
+            bottom_layout.setContentsMargins(20, 10, 20, 10)
+            bottom_layout.setSpacing(10)
+
+            # 🔴 Selection Label
+            self.selection_label = QLabel("No selection made")
+            self.selection_label.setStyleSheet("color: #f2f2f2; font-size: 14px;")
+            bottom_layout.addWidget(self.selection_label)
+
+            # ✅ Assign Button
             self.assign_btn = QPushButton("Assign Driver to Collection")
-            self.assign_btn.setFixedHeight(32)
+            self.assign_btn.setFixedHeight(36)
             self.assign_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #cc0000;
                     color: white;
                     font-weight: bold;
-                    border-radius: 5px;
-                    font-size: 13px;
+                    border-radius: 6px;
+                    font-size: 14px;
                 }
                 QPushButton:hover {
                     background-color: #ff0000;
                 }
             """)
             self.assign_btn.clicked.connect(self.assign_driver_to_collection)
-            collection_layout.addWidget(self.assign_btn)
-            main_layout.addLayout(collection_layout)
+            bottom_layout.addWidget(self.assign_btn)
 
-            # Bottom: Map View (fills remaining space)
+            # 🗺️ Map View
             self.map_view = QLabel("🗺️ Driver location map placeholder")
             self.map_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.map_view.setMinimumHeight(300)
             self.map_view.setStyleSheet("""
                 background-color: #2e2e2e;
                 color: #f2f2f2;
@@ -374,10 +456,15 @@ class DashboardWindow(QMainWindow):
                 border: 1px solid #444;
                 padding: 10px;
             """)
-            main_layout.addWidget(self.map_view)
+            self.map_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            bottom_layout.addWidget(self.map_view)
+
+            splitter.addWidget(bottom_widget)
+            splitter.setStretchFactor(1, 1)  # Let bottom expand
+
+            layout.addWidget(splitter)
             self.load_live_collections()
             return tab
-
 
         def build_collections_tab(self):
             tab = QWidget()
