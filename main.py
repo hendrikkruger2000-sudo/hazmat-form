@@ -419,12 +419,18 @@ async def submit(request: Request):
       <head>
         <script>
           function openPDF() {{
-            window.open('/pdf/{request_id}', '_blank');
-            window.location.href = '/thankyou';
+            const win = window.open('/pdf/{request_id}', '_blank');
+            setTimeout(() => {{
+              window.location.href = '/thankyou';
+            }}, 1000);  // 🔁 Delay redirect by 1 second
           }}
         </script>
       </head>
       <body onload="openPDF()">
+        <noscript>
+          <p>PDF generated: <a href="/pdf/{request_id}" target="_blank">Click here to view</a></p>
+          <p><a href="/thankyou">Continue</a></p>
+        </noscript>
       </body>
     </html>
     """)

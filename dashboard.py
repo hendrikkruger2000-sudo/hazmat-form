@@ -5,6 +5,10 @@ from PyQt6.QtWidgets import (
     QTabWidget, QLineEdit, QTextEdit, QSizePolicy, QScrollArea,
     QHeaderView, QFileDialog, QDateEdit
 )
+import threading, requests
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal
+
+
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QDesktopServices, QPixmap
 from PyQt6.QtCore import QUrl
@@ -13,6 +17,54 @@ import requests
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QSplitter
 from PyQt6.QtGui import QPalette, QColor
+class TablePoller(QObject):
+    collections_updated = pyqtSignal(list)
+    assigned_updated = pyqtSignal(list)
+    completed_updated = pyqtSignal(list)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.poll_all)
+        self.timer.start(1500)  # 🔁 Increase to 1.5s for stability
+        self.is_polling = False
+
+    def poll_all(self):
+        if self.is_polling:
+            return
+        self.is_polling = True
+        threading.Thread(target=self._poll_worker, daemon=True).start()
+
+    def _poll_worker(self):
+        self.fetch_collections()
+        self.fetch_assigned()
+        self.fetch_completed()
+        self.is_polling = False
+
+    def fetch_collections(self):
+        try:
+            r = requests.get("https://hazmat-collection.onrender.com/ops/collections", timeout=2)
+            if r.status_code == 200:
+                self.collections_updated.emit(r.json())
+        except Exception as e:
+            print("❌ collections fetch failed:", e)
+
+    def fetch_assigned(self):
+        try:
+            r = requests.get("https://hazmat-collection.onrender.com/ops/assigned", timeout=2)
+            if r.status_code == 200:
+                self.assigned_updated.emit(r.json())
+        except Exception as e:
+            print("❌ assigned fetch failed:", e)
+
+    def fetch_completed(self):
+        try:
+            r = requests.get("https://hazmat-collection.onrender.com/ops/completed", timeout=5)
+            if r.status_code == 200:
+                self.completed_updated.emit(r.json())
+        except Exception as e:
+            print("❌ completed fetch failed:", e)
+
 
 class LoginDialog(QDialog):
     def __init__(self):
@@ -138,38 +190,31 @@ class DashboardWindow(QMainWindow):
             self.user_code = user_code
             self.init_ui()
 
-        def start_auto_refresh(self):
-                self.refresh_timer = QTimer()
-                self.refresh_timer.timeout.connect(self.refresh_all_tabs)
-                self.refresh_timer.start(15000)  # every 5 seconds
+        def update_unassigned_table(self, data: list):
+            unassigned = [
+                item for item in data
+                if (not item.get("driver") or item["driver"] == "Unassigned")
+                   and item.get("status") != "Delivered"
+            ]
 
-        def load_live_collections(self):
-            try:
-                response = requests.get("https://hazmat-collection.onrender.com/ops/assigned")
-                if response.status_code == 200:
-                    data = response.json()
-
-                    # ✅ Filter by driver status instead of collection status
-                    unassigned = [
-                        item for item in data
-                        if (not item.get("assigned_driver") or item["assigned_driver"] == "Unassigned")
-                           and item.get("status") != "Delivered"
-                    ]
+            self.unassigned_table.setRowCount(len(unassigned))
+            for i, item in enumerate(unassigned):
+                self.unassigned_table.setItem(i, 0, QTableWidgetItem(item.get("hazjnb_ref", "—")))
+                self.unassigned_table.setItem(i, 1, QTableWidgetItem(item.get("company", "—")))
+                self.unassigned_table.setItem(i, 2, QTableWidgetItem(item.get("pickup_date", "—")))
+                self.unassigned_table.setItem(i, 3, QTableWidgetItem(item.get("address", "—")))
 
 
-                    if unassigned:
-                        self.unassigned_table.setRowCount(len(unassigned))
-                        for i, item in enumerate(unassigned):
-                            self.unassigned_table.setItem(i, 0, QTableWidgetItem(item.get("hazjnb_ref", "—")))
-                            self.unassigned_table.setItem(i, 1, QTableWidgetItem(item.get("company", "—")))
-                            self.unassigned_table.setItem(i, 2, QTableWidgetItem(item.get("pickup_date", "—")))
-                            self.unassigned_table.setItem(i, 3, QTableWidgetItem(item.get("address", "—")))
-                    else:
-                        self.unassigned_table.setRowCount(1)
-                        self.unassigned_table.setItem(0, 0, QTableWidgetItem("No unassigned collections"))
-                        self.unassigned_table.setSpan(0, 0, 1, 4)
-            except Exception as e:
-                print("Failed to load collections from live site:", e)
+        def update_completed_table(self, data: list):
+            self.completed_table.setRowCount(len(data))
+            for i, item in enumerate(data):
+                self.completed_table.setItem(i, 0, QTableWidgetItem(item.get("ops", "—")))
+                self.completed_table.setItem(i, 1, QTableWidgetItem(item.get("company", "—")))
+                self.completed_table.setItem(i, 2, QTableWidgetItem(item.get("delivery_date", "—")))
+                self.completed_table.setItem(i, 3, QTableWidgetItem(item.get("signed_by", "—")))
+                self.completed_table.setItem(i, 4, QTableWidgetItem(item.get("document", "—")))
+                self.completed_table.setItem(i, 5, QTableWidgetItem(item.get("pod", "—")))
+                self.completed_table.setItem(i, 6, QTableWidgetItem(item.get("time", "—")))
 
         def select_driver(self, row, column):
             if self.selected_driver_row == row:
@@ -239,7 +284,7 @@ class DashboardWindow(QMainWindow):
             self.map_view.setText("🗺️ Driver location map placeholder")
 
             # 🔄 Refresh table
-            self.load_live_collections()
+            self.poller.fetch_collections()
 
         def build_logo_header(self):
                 logo = QLabel()
@@ -256,8 +301,11 @@ class DashboardWindow(QMainWindow):
             self.tabs.addTab(self.build_updates_tab(), "Client Updates")
             self.tabs.addTab(self.build_completed_tab(), "Completed Shipments")
             self.setCentralWidget(self.tabs)
-            self.start_auto_refresh()
             self.tabs.currentChanged.connect(self.reset_driver_tab_selection)
+            self.poller = TablePoller()
+            self.poller.collections_updated.connect(self.update_unassigned_table)
+            self.poller.assigned_updated.connect(self.refresh_collections_tab)
+            self.poller.completed_updated.connect(self.refresh_completed_tab)
 
         def reset_driver_tab_selection(self, index):
             if self.tabs.tabText(index) == "Select Driver":
@@ -268,31 +316,18 @@ class DashboardWindow(QMainWindow):
                 self.selected_driver_code = None
                 self.selection_label.setText("No selection made")
 
-        def refresh_all_tabs(self):
-            self.load_live_collections()
-            self.refresh_collections_tab()
-            self.refresh_updates_tab()
-            self.refresh_completed_tab()
+        def refresh_collections_tab(self, data: list):
+            assigned = [item for item in data if
+                        item.get("driver") and item["driver"] != "Unassigned"]
 
-        def refresh_collections_tab(self):
-            try:
-                response = requests.get("https://hazmat-collection.onrender.com/ops/assigned")
-                if response.status_code == 200:
-                    data = response.json()
-
-                    # ✅ Filter only collections with assigned drivers
-                    assigned = [item for item in data if item.get("driver") and item["driver"] != "Unassigned"]
-
-                    self.collections_table.setRowCount(len(assigned))
-                    for i, item in enumerate(assigned):
-                        self.collections_table.setItem(i, 0, QTableWidgetItem(item.get("hmj_ref", "HMJ—")))
-                        self.collections_table.setItem(i, 1, QTableWidgetItem(item.get("hazjnb_ref", "—")))
-                        self.collections_table.setItem(i, 2, QTableWidgetItem(item.get("company", "—")))
-                        self.collections_table.setItem(i, 3, QTableWidgetItem(item.get("pickup_date", "—")))
-                        self.collections_table.setItem(i, 4, QTableWidgetItem(item.get("driver", "—")))
-                        self.collections_table.setItem(i, 5, QTableWidgetItem(item.get("status", "Assigned")))
-            except Exception as e:
-                print("❌ Failed to refresh collections:", e)
+            self.collections_table.setRowCount(len(assigned))
+            for i, item in enumerate(assigned):
+                self.collections_table.setItem(i, 0, QTableWidgetItem("—"))  # HMJ Ref placeholder
+                self.collections_table.setItem(i, 1, QTableWidgetItem(item.get("hazjnb_ref", "—")))
+                self.collections_table.setItem(i, 2, QTableWidgetItem(item.get("company", "—")))
+                self.collections_table.setItem(i, 3, QTableWidgetItem(item.get("pickup_date", "—")))
+                self.collections_table.setItem(i, 4, QTableWidgetItem(item.get("driver", "—")))
+                self.collections_table.setItem(i, 5, QTableWidgetItem(item.get("status", "Assigned")))
 
         def refresh_updates_tab(self):
             try:
@@ -314,22 +349,16 @@ class DashboardWindow(QMainWindow):
             except Exception as e:
                 print("❌ Failed to refresh updates:", e)
 
-        def refresh_completed_tab(self):
-            try:
-                response = requests.get("https://hazmat-collection.onrender.com/ops/completed")
-                if response.status_code == 200:
-                    completed = response.json()
-                    self.completed_table.setRowCount(len(completed))
-                    for i, c in enumerate(completed):
-                        self.completed_table.setItem(i, 0, QTableWidgetItem(c["ops"]))
-                        self.completed_table.setItem(i, 1, QTableWidgetItem(c["company"]))
-                        self.completed_table.setItem(i, 2, QTableWidgetItem(c["delivery_date"]))
-                        self.completed_table.setItem(i, 3, QTableWidgetItem(c["time"]))
-                        self.completed_table.setItem(i, 4, QTableWidgetItem(c["signed_by"]))
-                        self.completed_table.setItem(i, 5, QTableWidgetItem(c["document"]))
-                        self.completed_table.setItem(i, 6, QTableWidgetItem(c["pod"]))
-            except Exception as e:
-                print("❌ Failed to refresh completed shipments:", e)
+        def refresh_completed_tab(self, completed: list):
+            self.completed_table.setRowCount(len(completed))
+            for i, c in enumerate(completed):
+                self.completed_table.setItem(i, 0, QTableWidgetItem(c["ops"]))
+                self.completed_table.setItem(i, 1, QTableWidgetItem(c["company"]))
+                self.completed_table.setItem(i, 2, QTableWidgetItem(c["delivery_date"]))
+                self.completed_table.setItem(i, 3, QTableWidgetItem(c["time"]))
+                self.completed_table.setItem(i, 4, QTableWidgetItem(c["signed_by"]))
+                self.completed_table.setItem(i, 5, QTableWidgetItem(c["document"]))
+                self.completed_table.setItem(i, 6, QTableWidgetItem(c["pod"]))
 
         def build_map_tab(self):
             tab = QWidget()
@@ -463,7 +492,6 @@ class DashboardWindow(QMainWindow):
             splitter.setStretchFactor(1, 1)  # Let bottom expand
 
             layout.addWidget(splitter)
-            self.load_live_collections()
             return tab
 
         def build_collections_tab(self):
