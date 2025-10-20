@@ -2,13 +2,14 @@
 from fastapi import FastAPI, Request, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-import sqlite3, os
 from datetime import datetime
 import qrcode
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 from reportlab.lib.colors import HexColor
+import sqlite3, json, os
+
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -18,11 +19,15 @@ os.makedirs("static/qrcodes", exist_ok=True)
 os.makedirs("static/uploads", exist_ok=True)
 
 def init_db():
-    import sqlite3
-    try:
-        conn = sqlite3.connect("hazmat.db")
-        cursor = conn.cursor()
+    if os.path.exists("hazmat.db"):
+        print("✅ hazmat.db already exists")
+        return
 
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+
+    try:
+        # Create tables
         cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ops TEXT,
@@ -33,7 +38,6 @@ def init_db():
             time TEXT,
             "update" TEXT
         );""")
-        print("✅ updates table created")
 
         cursor.execute("""CREATE TABLE IF NOT EXISTS completed (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +49,6 @@ def init_db():
             document TEXT,
             pod TEXT
         );""")
-        print("✅ completed table created")
 
         cursor.execute("""CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +71,6 @@ def init_db():
             assigned_driver TEXT,
             status TEXT
         );""")
-        print("✅ requests table created")
 
         cursor.execute("""CREATE TABLE IF NOT EXISTS scan_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,15 +78,56 @@ def init_db():
             driver_id TEXT,
             timestamp TEXT
         );""")
-        print("✅ scan_log table created")
+
+        print("✅ Tables created")
+
+        # Restore from JSON if backups exist
+        def restore_table(json_path, table_name):
+            if os.path.exists(json_path):
+                with open(json_path) as f:
+                    data = json.load(f)
+                    for row in data:
+                        cursor.execute(f"""
+                            INSERT INTO {table_name} ({','.join(row.keys())})
+                            VALUES ({','.join(['?'] * len(row))})
+                        """, list(row.values()))
+                print(f"✅ Restored {table_name} from {json_path}")
+
+        restore_table("static/backups/requests.json", "requests")
+        restore_table("static/backups/updates.json", "updates")
+        restore_table("static/backups/completed.json", "completed")
 
         conn.commit()
-        conn.close()
-        print("✅ hazmat.db initialized")
+        print("✅ hazmat.db initialized and restored")
     except Exception as e:
         print("❌ init_db() failed:", e)
+    finally:
+        conn.close()
 
 init_db()
+
+def backup_database():
+    os.makedirs("static/backups", exist_ok=True)
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    try:
+        backup_database()
+    except Exception as e:
+        print("❌ Backup failed:", e)
+
+    def dump_table(table_name, filename):
+        cursor.execute(f"SELECT * FROM {table_name}")
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+        with open(f"static/backups/{filename}", "w") as f:
+            json.dump([dict(zip(columns, row)) for row in rows], f, indent=2)
+
+    dump_table("requests", "requests.json")
+    dump_table("updates", "updates.json")
+    dump_table("completed", "completed.json")
+    conn.close()
+    print("✅ Database backed up to JSON")
+
 
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -220,6 +263,7 @@ def submit_form():
     """
 
 
+
 @app.get("/ops/assigned")
 def get_assigned():
     conn = sqlite3.connect("hazmat.db")
@@ -245,18 +289,6 @@ def get_driver_jobs(code: str):
     conn.close()
     return [{"hazjnb_ref": r[0], "company": r[1], "address": r[2], "pickup_date": r[3]} for r in rows]
 
-@app.post("/assign")
-def assign_driver(payload: dict):
-    haz_ref = payload["hazjnb_ref"]
-    driver_code = payload["driver_code"]
-    conn = sqlite3.connect("hazmat.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE requests SET assigned_driver = ?, status = 'Assigned' WHERE reference_number = ?
-    """, (driver_code, haz_ref))
-    conn.commit()
-    conn.close()
-    return {"status": "assigned"}
 
 @app.post("/scan_qr")
 def scan_qr(payload: dict):
@@ -288,7 +320,9 @@ def submit_update(payload: dict):
     ))
     conn.commit()
     conn.close()
+    backup_database()
     return {"status": "update received"}
+
 
 @app.get("/ops/updates")
 def get_updates():
@@ -315,7 +349,9 @@ def submit_completed(payload: dict):
     """, (payload["haz_ref"],))
     conn.commit()
     conn.close()
+    backup_database()
     return {"status": "completed"}
+
 
 @app.get("/ops/completed")
 def get_completed():
@@ -360,9 +396,9 @@ async def submit(request: Request):
 
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM requests")
-    count = cursor.fetchone()[0]
-    reference_number = f"HAZJNB{str(count + 1).zfill(4)}"
+    cursor.execute("SELECT MAX(id) FROM requests")
+    max_id = cursor.fetchone()[0] or 0
+    reference_number = f"HAZJNB{str(max_id + 1).zfill(4)}"
 
     cursor.execute("""
         INSERT INTO requests (
@@ -378,6 +414,7 @@ async def submit(request: Request):
     request_id = cursor.lastrowid
     conn.commit()
     conn.close()
+    backup_database()
 
     for file in uploaded_files:
         contents = await file.read()
@@ -413,6 +450,7 @@ async def submit(request: Request):
     cursor.execute("UPDATE requests SET pdf_path = ? WHERE id = ?", (pdf_path, request_id))
     conn.commit()
     conn.close()
+    backup_database()
 
     return HTMLResponse(f"""
     <html>
@@ -502,7 +540,6 @@ def assign_collection(payload: dict):
 
 @app.get("/driver/{code}")
 def get_driver_jobs(code: str):
-    import sqlite3
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
 
@@ -523,6 +560,10 @@ def get_driver_jobs(code: str):
         })
 
     return jobs
+@app.get("/ops/backup")
+def trigger_backup():
+    backup_database()
+    return {"status": "backup complete"}
 
 @app.post("/scan_qr")
 def scan_qr(payload: dict):
