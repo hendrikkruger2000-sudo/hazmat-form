@@ -417,20 +417,31 @@ async def submit(request: Request):
     return HTMLResponse(f"""
     <html>
       <head>
-        <script>
-          function openPDF() {{
-            const win = window.open('/pdf/{request_id}', '_blank');
-            setTimeout(() => {{
-              window.location.href = '/thankyou';
-            }}, 1000);  // 🔁 Delay redirect by 1 second
+        <title>Waybill Generated</title>
+        <style>
+          body {{
+            font-family: Segoe UI;
+            background: #ECEFF1;
+            text-align: center;
+            padding: 2rem;
           }}
-        </script>
+          button {{
+            margin: 1rem;
+            padding: 0.75rem 1.5rem;
+            background-color: #388E3C;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+          }}
+        </style>
       </head>
-      <body onload="openPDF()">
-        <noscript>
-          <p>PDF generated: <a href="/pdf/{request_id}" target="_blank">Click here to view</a></p>
-          <p><a href="/thankyou">Continue</a></p>
-        </noscript>
+      <body>
+        <h1 style="color:#D32F2F;">Waybill Generated</h1>
+        <p>Your waybill is ready. Click below to view or download it:</p>
+        <button onclick="window.open('/pdf/{request_id}', '_blank')">📄 View Waybill PDF</button>
+        <button onclick="window.location.href='/thankyou'">✅ Continue</button>
       </body>
     </html>
     """)
