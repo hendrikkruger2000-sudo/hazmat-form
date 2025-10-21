@@ -401,14 +401,14 @@ async def submit(request: Request):
     cursor = conn.cursor()
     counter_path = "static/backups/ref_counter.txt"
 
-# Read current counter
+    # Read current counter
     if os.path.exists(counter_path):
-           with open(counter_path, "r") as f:
-           last_id = int(f.read().strip())
+        with open(counter_path, "r") as f:
+            last_id = int(f.read().strip())
     else:
-           last_id = 0
+        last_id = 0
 
-# Increment and write back
+    # Increment and write back
     new_id = last_id + 1
     with open(counter_path, "w") as f:
         f.write(str(new_id))
