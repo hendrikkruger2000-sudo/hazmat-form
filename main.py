@@ -19,15 +19,11 @@ os.makedirs("static/qrcodes", exist_ok=True)
 os.makedirs("static/uploads", exist_ok=True)
 
 def init_db():
-    if os.path.exists("hazmat.db"):
-        print("✅ hazmat.db already exists")
-        return
-
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
 
     try:
-        # Create tables
+        # Create tables if they don't exist
         cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ops TEXT,
@@ -81,29 +77,36 @@ def init_db():
 
         print("✅ Tables created")
 
-        # Restore from JSON if backups exist
-        def restore_table(json_path, table_name):
-            if os.path.exists(json_path):
-                with open(json_path) as f:
-                    data = json.load(f)
-                    for row in data:
-                        cursor.execute(f"""
-                            INSERT INTO {table_name} ({','.join(row.keys())})
-                            VALUES ({','.join(['?'] * len(row))})
-                        """, list(row.values()))
-                print(f"✅ Restored {table_name} from {json_path}")
+        # Check if requests table is empty
+        cursor.execute("SELECT COUNT(*) FROM requests")
+        request_count = cursor.fetchone()[0]
 
-        restore_table("static/backups/requests.json", "requests")
-        restore_table("static/backups/updates.json", "updates")
-        restore_table("static/backups/completed.json", "completed")
+        if request_count == 0:
+            print("🔁 Restoring database from JSON backups...")
+
+            def restore_table(json_path, table_name):
+                if os.path.exists(json_path):
+                    with open(json_path) as f:
+                        data = json.load(f)
+                        for row in data:
+                            cursor.execute(f"""
+                                INSERT INTO {table_name} ({','.join(row.keys())})
+                                VALUES ({','.join(['?'] * len(row))})
+                            """, list(row.values()))
+                    print(f"✅ Restored {table_name} from {json_path}")
+
+            restore_table("static/backups/requests.json", "requests")
+            restore_table("static/backups/updates.json", "updates")
+            restore_table("static/backups/completed.json", "completed")
+
+        else:
+            print("✅ hazmat.db already contains data — no restore needed")
 
         conn.commit()
-        print("✅ hazmat.db initialized and restored")
     except Exception as e:
         print("❌ init_db() failed:", e)
     finally:
         conn.close()
-
 init_db()
 
 def backup_database():
