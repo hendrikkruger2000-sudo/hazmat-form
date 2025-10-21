@@ -399,9 +399,21 @@ async def submit(request: Request):
 
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT MAX(id) FROM requests")
-    max_id = cursor.fetchone()[0] or 0
-    reference_number = f"HAZJNB{str(max_id + 1).zfill(4)}"
+    counter_path = "static/backups/ref_counter.txt"
+
+# Read current counter
+    if os.path.exists(counter_path):
+           with open(counter_path, "r") as f:
+           last_id = int(f.read().strip())
+    else:
+           last_id = 0
+
+# Increment and write back
+    new_id = last_id + 1
+    with open(counter_path, "w") as f:
+        f.write(str(new_id))
+
+    reference_number = f"HAZJNB{str(new_id).zfill(4)}"
 
     cursor.execute("""
         INSERT INTO requests (
