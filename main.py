@@ -251,65 +251,57 @@ def home():
             min-height: 100vh;
           }
           header {
-            background: linear-gradient(to bottom, #2E7D32, #66BB6A, #C8E6C9);
-            padding: 1rem;
-            text-align: center;
-
+            background-color: #2E7D32;
+            color: white;
+            padding: 1rem 2rem;
           }
           header img {
             height: 60px;
-            margin-bottom: 1rem;
+            display: block;
+            margin: 0 auto 1rem auto;
           }
           .nav-bar {
-  text-align: left;
-  padding: 0.5rem 2rem;
-  font-size: 1rem;
-  color: white;
-}
-
-.nav-bar a {
-  color: white;
-  text-decoration: none;
-  margin-right: 1rem;
-  font-weight: 500;
-}
-
-.nav-bar a:hover {
-  text-decoration: underline;
-  color: #F1F8E9;
-}
+            text-align: left;
+            font-size: 1rem;
+            padding-left: 2rem;
+          }
+          .nav-bar a {
+            color: white;
+            text-decoration: none;
+            margin-right: 1rem;
+            font-weight: 500;
+          }
+          .nav-bar a:hover {
+            text-decoration: underline;
+            color: #C8E6C9;
+          }
           main {
-             flex: 1;
+            flex: 1;
             padding: 2rem;
             max-width: 900px;
             margin: auto;
             background: #FAFAFA;
-
           }
           footer {
-            background: linear-gradient(to right, #2E7D32, #81C784, #E8F5E9);
-            color: #333;
+            background-color: #2E7D32;
+            color: white;
             text-align: center;
             padding: 1rem;
             font-size: 0.9rem;
-
           }
         </style>
       </head>
       <body>
         <header>
-          <img src="/static/logo.png" alt="Hazmat Logo" style="height:60px; margin-bottom:1rem;">
-          <header>
-  <img src="/static/logo.png" alt="Hazmat Logo" style="height:60px; margin-bottom:1rem;">
-  <nav class="nav-bar">
-    <a href="#" onclick="loadContent('home')">Home</a> |
-    <a href="#" onclick="loadContent('login')">Login / Sign Up</a> |
-    <a href="#" onclick="loadContent('submit')">Book a Collection</a> |
-    <a href="#" onclick="loadContent('track')">Track Shipments</a> |
-    <a href="#" onclick="loadContent('complaint')">File a Complaint</a> |
-    <a href="#" onclick="loadContent('rate')">Rate Our Services</a>
-  </nav>
-</header>
+          <img src="/static/logo.png" alt="Hazmat Logo">
+          <nav class="nav-bar">
+            <a href="#" onclick="loadContent('home')">Home</a> |
+            <a href="#" onclick="loadContent('login')">Login / Sign Up</a> |
+            <a href="#" onclick="loadContent('submit')">Book a Collection</a> |
+            <a href="#" onclick="loadContent('track')">Track Shipments</a> |
+            <a href="#" onclick="loadContent('complaint')">File a Complaint</a> |
+            <a href="#" onclick="loadContent('rate')">Rate Our Services</a>
+          </nav>
         </header>
         <main id="content">
           <h2>Welcome to the Hazmat Collection System</h2>
