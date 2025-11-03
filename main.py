@@ -359,7 +359,7 @@ def embed_submit_form():
     <style>
       .form-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 2fr 2fr;
         gap: 2rem;
         margin-bottom: 2rem;
       }
