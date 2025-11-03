@@ -245,63 +245,71 @@ def home():
           body {
             margin: 0;
             font-family: Segoe UI, sans-serif;
-            background: #F5F5F5;
+            background: #F1F8E9;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
           }
           header {
-            background: linear-gradient(to bottom, #388E3C, #A5D6A7, #F1F8E9);
+            background: linear-gradient(to bottom, #2E7D32, #66BB6A, #C8E6C9);
             padding: 1rem;
             text-align: center;
+
           }
           header img {
             height: 60px;
             margin-bottom: 1rem;
           }
           .nav-bar {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-            margin-bottom: 1rem;
-          }
-          .nav-bar button {
-            padding: 0.5rem 1rem;
-            background-color: #388E3C;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 1rem;
-            cursor: pointer;
-          }
-          .nav-bar button:hover {
-            background-color: #2E7D32;
-          }
+  text-align: left;
+  padding: 0.5rem 2rem;
+  font-size: 1rem;
+  color: white;
+}
+
+.nav-bar a {
+  color: white;
+  text-decoration: none;
+  margin-right: 1rem;
+  font-weight: 500;
+}
+
+.nav-bar a:hover {
+  text-decoration: underline;
+  color: #F1F8E9;
+}
           main {
+             flex: 1;
             padding: 2rem;
             max-width: 900px;
             margin: auto;
             background: #FAFAFA;
+
           }
           footer {
-            background: linear-gradient(to right, #388E3C, #A5D6A7, #F1F8E9);
+            background: linear-gradient(to right, #2E7D32, #81C784, #E8F5E9);
             color: #333;
             text-align: center;
             padding: 1rem;
             font-size: 0.9rem;
+
           }
         </style>
       </head>
       <body>
         <header>
-          <img src="/logo.png" alt="Hazmat Logo">
-          <div class="nav-bar">
-            <button onclick="loadContent('home')">Home</button>
-            <button onclick="loadContent('login')">Login / Sign Up</button>
-            <button onclick="loadContent('submit')">Book a Collection</button>
-            <button onclick="loadContent('track')">Track Shipments</button>
-            <button onclick="loadContent('contact')">Contact Us</button>
-            <button onclick="loadContent('complaint')">File a Complaint</button>
-            <button onclick="loadContent('rate')">Rate Our Services</button>
-          </div>
+          <img src="/static/logo.png" alt="Hazmat Logo" style="height:60px; margin-bottom:1rem;">
+          <header>
+  <img src="/static/logo.png" alt="Hazmat Logo" style="height:60px; margin-bottom:1rem;">
+  <nav class="nav-bar">
+    <a href="#" onclick="loadContent('home')">Home</a> |
+    <a href="#" onclick="loadContent('login')">Login / Sign Up</a> |
+    <a href="#" onclick="loadContent('submit')">Book a Collection</a> |
+    <a href="#" onclick="loadContent('track')">Track Shipments</a> |
+    <a href="#" onclick="loadContent('complaint')">File a Complaint</a> |
+    <a href="#" onclick="loadContent('rate')">Rate Our Services</a>
+  </nav>
+</header>
         </header>
         <main id="content">
           <h2>Welcome to the Hazmat Collection System</h2>
