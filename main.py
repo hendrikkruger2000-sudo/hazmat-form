@@ -78,6 +78,25 @@ def init_db():
             driver_id TEXT,
             timestamp TEXT
         );""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS clients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE,
+            password TEXT,
+            name TEXT
+        );""")
+        print("✅ clients table created")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS saved_addresses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id INTEGER,
+            label TEXT,
+            type TEXT,
+            company TEXT,
+            address TEXT,
+            contact_person TEXT,
+            contact_number TEXT,
+            FOREIGN KEY (client_id) REFERENCES clients(id)
+        );""")
+        print("✅ saved_addresses table created")
 
         print("✅ Tables created")
 
@@ -155,6 +174,65 @@ def backup_database():
     conn.close()
     print("✅ Database and counter backed up to JSON")
 
+@app.post("/signup")
+def signup(payload: dict):
+    email = payload.get("email")
+    password = payload.get("password")
+    name = payload.get("name")
+
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO clients (email, password, name) VALUES (?, ?, ?)", (email, password, name))
+        conn.commit()
+        return {"status": "success", "message": "Account created"}
+    except sqlite3.IntegrityError:
+        return {"status": "error", "message": "Email already registered"}
+    finally:
+        conn.close()
+
+@app.post("/login")
+def login(payload: dict):
+    email = payload.get("email")
+    password = payload.get("password")
+
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name FROM clients WHERE email = ? AND password = ?", (email, password))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return {"status": "success", "client_id": row[0], "name": row[1]}
+    return {"status": "error", "message": "Invalid credentials"}
+
+@app.get("/client/addresses/{client_id}")
+def get_saved_addresses(client_id: int):
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, label, type, company, address, contact_person, contact_number
+        FROM saved_addresses WHERE client_id = ?
+    """, (client_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(zip(["id", "label", "type", "company", "address", "contact_person", "contact_number"], r)) for r in rows]
+
+@app.post("/client/addresses")
+def save_address(payload: dict):
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO saved_addresses (client_id, label, type, company, address, contact_person, contact_number)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        payload["client_id"], payload["label"], payload["type"],
+        payload["company"], payload["address"],
+        payload["contact_person"], payload["contact_number"]
+    ))
+    conn.commit()
+    conn.close()
+    return {"status": "saved"}
 
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -164,26 +242,259 @@ def home():
         <title>Hazmat Collection System</title>
         <link rel="icon" href="/icon.png" type="image/png">
         <style>
-          body { font-family:Segoe UI; text-align:center; padding:2rem; background:#ECEFF1; }
-          h1 { color:#D32F2F; }
-          p { color:#455A64; }
-          button {
-            margin:1rem; padding:0.75rem 1.5rem;
-            background-color:#388E3C; color:white;
-            border:none; border-radius:4px;
-            font-size:1rem;
+          body {
+            margin: 0;
+            font-family: Segoe UI, sans-serif;
+            background: #F5F5F5;
+          }
+          header {
+            background: linear-gradient(to right, #388E3C, #C8E6C9);
+            padding: 1rem;
+            text-align: center;
+          }
+          header img {
+            height: 60px;
+          }
+          .container {
+            display: flex;
+            min-height: 80vh;
+          }
+          nav {
+            width: 220px;
+            background: #ffffff;
+            padding: 2rem 1rem;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+          }
+          nav button {
+            display: block;
+            width: 100%;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background-color: #388E3C;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+          }
+          nav button:hover {
+            background-color: #2E7D32;
+          }
+          main {
+            flex: 1;
+            padding: 2rem;
+            background: #FAFAFA;
+          }
+          footer {
+            background: linear-gradient(to right, #388E3C, #C8E6C9);
+            color: white;
+            text-align: center;
+            padding: 1rem;
           }
         </style>
       </head>
       <body>
-        <img src="/logo.png" alt="Hazmat Logo" style="width:150px; margin-bottom:1rem;">
-        <h1>Welcome to Hazmat Collection System</h1>
-        <p>Choose an action below:</p>
-        <button onclick="window.location.href='/submit'">Book a Collection</button>
-        <button onclick="window.location.href='/track'">Track a Collection</button>
+        <header>
+          <img src="/logo.png" alt="Hazmat Logo">
+        </header>
+        <div class="container">
+          <nav>
+            <button onclick="loadContent('login')">Login / Sign Up</button>
+            <button onclick="loadContent('book')">Book a Collection</button>
+            <button onclick="loadContent('track')">Track Shipments</button>
+            <button onclick="loadContent('contact')">Contact Us</button>
+            <button onclick="loadContent('complaint')">File a Complaint</button>
+            <button onclick="loadContent('rate')">Rate Our Services</button>
+          </nav>
+          <main id="content">
+            <h2>Welcome to the Hazmat Collection System</h2>
+            <p>
+                The Hazmat Collection System is your all-in-one platform for booking, tracking, and managing hazardous material shipments — built for speed, simplicity, and global reach. Whether you're a local client or operating across borders, our system empowers you to:
+            </p>
+            <ul>
+                <li>📦 Book collections effortlessly with a streamlined digital form</li>
+                <li>📄 Upload all required documents directly — no printing, no email chains</li>
+                <li>🔔 Receive real-time updates on every step of your shipment</li>
+                </ul>
+            <p>
+                What sets us apart? No more back-and-forth with operations. No more missing paperwork. No more delays. Just a seamless, timeous experience that keeps your logistics moving forward — paperless, painless, and powerful.
+            </p>
+            </main>
+            </div>
+            <footer>
+                <p>Hazmat Global Logistics | Johannesburg | Cape Town | Durban</p>
+            </footer>
+
+        <script>
+function loadContent(section) {
+  const content = document.getElementById("content");
+
+  fetch(`/embed/${section}`)
+    .then(res => {
+      if (!res.ok) throw new Error("Failed to load content");
+      return res.text();
+    })
+    .then(html => {
+      content.innerHTML = html;
+    })
+    .catch(err => {
+      content.innerHTML = `<p style="color:red;">⚠️ Could not load section: ${section}</p>`;
+      console.error(err);
+    });
+}
+</script>
       </body>
     </html>
     """
+
+@app.get("/embed/login", response_class=HTMLResponse)
+def embed_login():
+    return """
+    <h2>Client Login / Sign Up</h2>
+    <input type="email" id="email" placeholder="Email" style="width:100%; margin-bottom:8px;">
+    <input type="password" id="password" placeholder="Password" style="width:100%; margin-bottom:8px;">
+    <button onclick="login()">Login</button>
+    <p id="login-status" style="color:red;"></p>
+    <hr>
+    <h3>Sign Up</h3>
+    <input type="text" id="signup-name" placeholder="Name" style="width:100%; margin-bottom:8px;">
+    <input type="email" id="signup-email" placeholder="Email" style="width:100%; margin-bottom:8px;">
+    <input type="password" id="signup-password" placeholder="Password" style="width:100%; margin-bottom:8px;">
+    <button onclick="signup()">Sign Up</button>
+    <p id="signup-status" style="color:green;"></p>
+    <script>
+      function login() {
+        fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: document.getElementById("email").value,
+            password: document.getElementById("password").value
+          })
+        }).then(res => res.json()).then(data => {
+          document.getElementById("login-status").innerText = data.message;
+        });
+      }
+      function signup() {
+        fetch("/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: document.getElementById("signup-name").value,
+            email: document.getElementById("signup-email").value,
+            password: document.getElementById("signup-password").value
+          })
+        }).then(res => res.json()).then(data => {
+          document.getElementById("signup-status").innerText = data.message;
+        });
+      }
+    </script>
+    """
+@app.get("/embed/track", response_class=HTMLResponse)
+def embed_track():
+    return """
+    <h2>Track Your Shipment</h2>
+    <input type="text" id="track-ref" placeholder="Enter HAZJNB Reference" style="width:100%; margin-bottom:8px;">
+    <button onclick="trackShipment()">Track</button>
+    <div id="track-result" style="margin-top:1rem;"></div>
+    <script>
+      function trackShipment() {
+        const ref = document.getElementById("track-ref").value;
+        fetch(`/driver/${ref}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.length === 0) {
+              document.getElementById("track-result").innerText = "No shipment found.";
+            } else {
+              document.getElementById("track-result").innerHTML = "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+            }
+          });
+      }
+    </script>
+    """
+
+@app.get("/embed/contact", response_class=HTMLResponse)
+def embed_contact():
+    return """
+    <h2>Contact Us</h2>
+    <p>📍 Johannesburg HQ: 123 Hazmat Lane, Rand West City</p>
+    <p>📍 Cape Town Branch: 456 Coastal Drive</p>
+    <p>📍 Durban Hub: 789 Portside Avenue</p>
+    <p>📧 Email: support@hazmatglobal.com</p>
+    <p>📞 Phone: +27 11 555 1234</p>
+    """
+
+@app.get("/embed/complaint", response_class=HTMLResponse)
+def embed_complaint():
+    return """
+    <h2>File a Complaint</h2>
+    <form>
+      <label>Your Name</label><input type="text" style="width:100%; margin-bottom:8px;">
+      <label>Your Email</label><input type="email" style="width:100%; margin-bottom:8px;">
+      <labelReference Number</label><input type="text" style="width:100%; margin-bottom:8px;">
+      <label>Complaint Details</label><textarea style="width:100%; height:100px;"></textarea>
+      <button type="submit">Submit Complaint</button>
+    </form>
+    """
+
+@app.get("/embed/rate", response_class=HTMLResponse)
+def embed_rate():
+    return """
+    <h2>Rate Our Services</h2>
+    <p>How would you rate your experience?</p>
+    <select>
+      <option>⭐ Poor</option>
+      <option>⭐⭐ Fair</option>
+      <option>⭐⭐⭐ Good</option>
+      <option>⭐⭐⭐⭐ Very Good</option>
+      <option>⭐⭐⭐⭐⭐ Excellent</option>
+    </select>
+    <br><br>
+    <textarea placeholder="Additional feedback..." style="width:100%; height:100px;"></textarea>
+    <br><button>Submit Rating</button>
+    """
+
+
+@app.get("/embed/submit", response_class=HTMLResponse)
+def embed_submit_form():
+    return """
+    <h2>Book a Hazmat Collection</h2>
+    <form action="/submit" method="post" enctype="multipart/form-data">
+      <label>Service Type</label>
+      <select name="serviceType">
+        <option value="local">Local</option>
+        <option value="export">Export</option>
+        <option value="import">Import</option>
+      </select>
+
+      <label>Collection Company</label>
+      <input type="text" name="collection_company_local">
+
+      <label>Collection Address</label>
+      <input type="text" name="collection_address_local">
+
+      <label>Pickup Date</label>
+      <input type="date" name="pickup_date_local">
+
+      <label>Delivery Company</label>
+      <input type="text" name="delivery_company_local">
+
+      <label>Delivery Address</label>
+      <input type="text" name="delivery_address_local">
+
+      <label>Client Reference</label>
+      <input type="text" name="client_reference_local">
+
+      <label>Client Notes</label>
+      <textarea name="client_notes_local"></textarea>
+
+      <label>Shipment Documents</label>
+      <input type="file" name="shipment_docs" multiple>
+
+      <button type="submit">Submit Collection Request</button>
+    </form>
+    """
+
 
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
@@ -251,6 +562,13 @@ def submit_form():
       </head>
       <body>
         <h1>Book a Hazmat Collection</h1>
+        <h2 style="text-align:center;">Client Login</h2>
+        <div id="login-section" style="max-width:600px; margin:auto; background:white; padding:1rem; border-radius:8px;">
+         <input type="email" id="email" placeholder="Email" style="margin-bottom:8px; width:100%; padding:8px;">
+        <input type="password" id="password" placeholder="Password" style="margin-bottom:8px; width:100%; padding:8px;">
+        <button type="button" onclick="login()" style="padding:8px 16px; background-color:#D32F2F; color:white; border:none; border-radius:4px;">Login</button>
+        <p id="login-status" style="color:red; margin-top:8px;"></p>
+        </div>
         <form action="/submit" method="post" enctype="multipart/form-data">
           <label>Service Type</label>
           <select name="serviceType">
@@ -285,6 +603,29 @@ def submit_form():
 
           <button type="submit">Submit Collection Request</button>
         </form>
+        <script>
+            let clientId = null;
+
+            function login() {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+
+            fetch("/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                clientId = data.client_id;
+                document.getElementById("login-status").innerText = "✅ Logged in as " + data.name;
+                } else {
+                document.getElementById("login-status").innerText = "❌ " + data.message;
+                }
+            });
+            }
+        </script>
       </body>
     </html>
     """
