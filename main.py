@@ -19,11 +19,15 @@ os.makedirs("static/qrcodes", exist_ok=True)
 os.makedirs("static/uploads", exist_ok=True)
 
 def init_db():
+    if os.path.exists("hazmat.db"):
+        print("✅ hazmat.db already exists")
+        return
+
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
 
     try:
-        # Create tables if they don't exist
+        # Create tables
         cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ops TEXT,
@@ -77,46 +81,57 @@ def init_db():
 
         print("✅ Tables created")
 
-        # Check if requests table is empty
-        cursor.execute("SELECT COUNT(*) FROM requests")
-        request_count = cursor.fetchone()[0]
+        # Restore from JSON if backups exist
+        def restore_table(json_path, table_name):
+            if os.path.exists(json_path):
+                with open(json_path) as f:
+                    data = json.load(f)
+                    for row in data:
+                        cursor.execute(f"""
+                            INSERT INTO {table_name} ({','.join(row.keys())})
+                            VALUES ({','.join(['?'] * len(row))})
+                        """, list(row.values()))
+                print(f"✅ Restored {table_name} from {json_path}")
 
-        if request_count == 0:
-            print("🔁 Restoring database from JSON backups...")
-
-            def restore_table(json_path, table_name):
-                if os.path.exists(json_path):
-                    with open(json_path) as f:
-                        data = json.load(f)
-                        for row in data:
-                            cursor.execute(f"""
-                                INSERT INTO {table_name} ({','.join(row.keys())})
-                                VALUES ({','.join(['?'] * len(row))})
-                            """, list(row.values()))
-                    print(f"✅ Restored {table_name} from {json_path}")
-
-            restore_table("static/backups/requests.json", "requests")
-            restore_table("static/backups/updates.json", "updates")
-            restore_table("static/backups/completed.json", "completed")
-
-        else:
-            print("✅ hazmat.db already contains data — no restore needed")
+        restore_table("static/backups/requests.json", "requests")
+        restore_table("static/backups/updates.json", "updates")
+        restore_table("static/backups/completed.json", "completed")
 
         conn.commit()
+        print("✅ hazmat.db initialized and restored")
     except Exception as e:
         print("❌ init_db() failed:", e)
     finally:
         conn.close()
+
 init_db()
+def get_next_reference_number():
+    counter_path = "static/backups/ref_counter.txt"
+
+    # Ensure the file exists
+    if not os.path.exists(counter_path):
+        with open(counter_path, "w") as f:
+            f.write("0")
+
+    # Read current value
+    with open(counter_path, "r") as f:
+        try:
+            last_id = int(f.read().strip())
+        except ValueError:
+            last_id = 0
+
+    # Increment and write back
+    new_id = last_id + 1
+    with open(counter_path, "w") as f:
+        f.write(str(new_id))
+
+    return f"HAZJNB{str(new_id).zfill(4)}"
+
 
 def backup_database():
     os.makedirs("static/backups", exist_ok=True)
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
-    try:
-        backup_database()
-    except Exception as e:
-        print("❌ Backup failed:", e)
 
     def dump_table(table_name, filename):
         cursor.execute(f"SELECT * FROM {table_name}")
@@ -128,8 +143,17 @@ def backup_database():
     dump_table("requests", "requests.json")
     dump_table("updates", "updates.json")
     dump_table("completed", "completed.json")
+
+    # ✅ Backup ref_counter.txt
+    counter_path = "static/backups/ref_counter.txt"
+    if os.path.exists(counter_path):
+        with open(counter_path) as f:
+            ref_value = f.read().strip()
+        with open("static/backups/ref_counter_backup.json", "w") as f:
+            json.dump({"last_ref": ref_value}, f)
+
     conn.close()
-    print("✅ Database backed up to JSON")
+    print("✅ Database and counter backed up to JSON")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -399,21 +423,7 @@ async def submit(request: Request):
 
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
-    counter_path = "static/backups/ref_counter.txt"
-
-    # Read current counter
-    if os.path.exists(counter_path):
-        with open(counter_path, "r") as f:
-            last_id = int(f.read().strip())
-    else:
-        last_id = 0
-
-    # Increment and write back
-    new_id = last_id + 1
-    with open(counter_path, "w") as f:
-        f.write(str(new_id))
-
-    reference_number = f"HAZJNB{str(new_id).zfill(4)}"
+    reference_number = get_next_reference_number()
 
     cursor.execute("""
         INSERT INTO requests (
