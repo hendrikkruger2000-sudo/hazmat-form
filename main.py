@@ -352,6 +352,121 @@ def home():
     </html>
     """
 
+@app.get("/embed/submit", response_class=HTMLResponse)
+def embed_submit_form():
+    return """
+    <h2>Book a Hazmat Collection</h2>
+    <style>
+      .form-block {
+        background: #ffffff;
+        border: 1px solid #C8E6C9;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      }
+      .form-block h3 {
+        margin-top: 0;
+        color: #2E7D32;
+      }
+      label {
+        display: block;
+        margin-top: 1rem;
+        font-weight: bold;
+      }
+      input, select, textarea {
+        width: 100%;
+        padding: 0.5rem;
+        margin-top: 0.5rem;
+        border: 1px solid #B0BEC5;
+        border-radius: 4px;
+        font-family: Segoe UI;
+      }
+      button {
+        margin-top: 2rem;
+        padding: 0.75rem 1.5rem;
+        background-color: #388E3C;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+    </style>
+
+    <form action="/submit" method="post" enctype="multipart/form-data">
+      <div class="form-block">
+        <h3>Collection Details</h3>
+        <label>Service Type</label>
+        <select name="serviceType">
+          <option value="local">Local</option>
+          <option value="export">Export</option>
+          <option value="import">Import</option>
+        </select>
+
+        <label>Collection Company</label>
+        <input type="text" name="collection_company_local">
+
+        <label>Collection Address</label>
+        <input type="text" name="collection_address_local">
+
+        <label>Pickup Date</label>
+        <input type="date" name="pickup_date_local">
+      </div>
+
+      <div class="form-block">
+        <h3>Delivery Details</h3>
+        <label>Delivery Company</label>
+        <input type="text" name="delivery_company_local">
+
+        <label>Delivery Address</label>
+        <input type="text" name="delivery_address_local">
+
+        <label>Client Reference</label>
+        <input type="text" name="client_reference_local">
+
+        <label>Email Address</label>
+        <input type="email" name="client_email_local" id="client_email">
+      </div>
+
+      <div class="form-block">
+        <h3>Shipment Details</h3>
+        <label>Inco Terms</label>
+        <select name="inco_terms">
+          <option value="EXW">EXW</option>
+          <option value="FOB">FOB</option>
+          <option value="CIF">CIF</option>
+          <option value="DAP">DAP</option>
+          <option value="DDP">DDP</option>
+        </select>
+
+        <label>Number of Pieces</label>
+        <input type="number" name="pieces">
+
+        <label>Total Weight (kg)</label>
+        <input type="number" step="0.01" name="weight">
+
+        <label>Dimensions (L x W x H in cm)</label>
+        <input type="text" name="dimensions" placeholder="e.g. 120 x 80 x 60">
+
+        <label>Client Notes</label>
+        <textarea name="client_notes_local"></textarea>
+
+        <label>Shipment Documents</label>
+        <input type="file" name="shipment_docs" multiple>
+      </div>
+
+      <button type="submit">Submit Collection Request</button>
+    </form>
+
+    <script>
+      // Autofill email if client is logged in
+      if (window.clientId && window.clientEmail) {
+        document.getElementById("client_email").value = window.clientEmail;
+      }
+    </script>
+    """
+
 @app.get("/embed/login", response_class=HTMLResponse)
 def embed_login():
     return """
