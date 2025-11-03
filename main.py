@@ -278,9 +278,11 @@ def home():
           main {
             flex: 1;
             padding: 2rem;
-            max-width: 900px;
-            margin: auto;
+            width: 100%;
+            max-width: none;
+            margin: 0;
             background: #FAFAFA;
+            box-sizing: border-box;
           }
           footer {
             background-color: #2E7D32;
@@ -357,28 +359,49 @@ def embed_submit_form():
     return """
     <h2>Book a Hazmat Collection</h2>
     <style>
+      /* Outer wrapper for full width */
+      .form-wrapper {
+        width: 100%;
+        padding: 2rem;
+        box-sizing: border-box;
+      }
+
+      /* Form itself */
+      form {
+        width: 100%;
+        margin: auto;
+        box-sizing: border-box;
+      }
+
+      /* Grid layout for blocks */
       .form-grid {
         display: grid;
-        grid-template-columns: 2fr 2fr;
+        grid-template-columns: 1fr 1fr;
         gap: 2rem;
-        margin-bottom: 2rem;
+        width: 100%;
       }
+
+      /* Individual blocks */
       .form-block {
         background: #ffffff;
         border: 1px solid #C8E6C9;
         border-radius: 8px;
-        padding: 1.5rem;
+        padding: 2rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
       }
+
       .form-block h3 {
         margin-top: 0;
         color: #2E7D32;
       }
+
+      /* Inputs */
       label {
         display: block;
         margin-top: 1rem;
         font-weight: bold;
       }
+
       input, select, textarea {
         width: 100%;
         padding: 0.5rem;
@@ -387,9 +410,13 @@ def embed_submit_form():
         border-radius: 4px;
         font-family: Segoe UI;
       }
+
+      /* Shipment block spans full width */
       .shipment-block {
         grid-column: span 2;
       }
+
+      /* Submit button */
       button {
         margin-top: 2rem;
         padding: 0.75rem 1.5rem;
@@ -402,73 +429,78 @@ def embed_submit_form():
       }
     </style>
 
-    <form action="/submit" method="post" enctype="multipart/form-data">
-      <div class="form-grid">
-        <div class="form-block">
-          <h3>Collection Details</h3>
-          <label>Service Type</label>
-          <select name="serviceType" id="serviceType" onchange="checkLocal()">
-            <option value="local">Local</option>
-            <option value="export">Export</option>
-            <option value="import">Import</option>
-          </select>
+    <div class="form-wrapper">
+      <form action="/submit" method="post" enctype="multipart/form-data">
+        <div class="form-grid">
+          <!-- Collection Block -->
+          <div class="form-block">
+            <h3>Collection Details</h3>
+            <label>Service Type</label>
+            <select name="serviceType" id="serviceType" onchange="checkLocal()">
+              <option value="local">Local</option>
+              <option value="export">Export</option>
+              <option value="import">Import</option>
+            </select>
 
-          <label>Collection Company</label>
-          <input type="text" name="collection_company_local">
+            <label>Collection Company</label>
+            <input type="text" name="collection_company_local">
 
-          <label>Collection Address</label>
-          <input type="text" name="collection_address_local">
+            <label>Collection Address</label>
+            <input type="text" name="collection_address_local">
 
-          <label>Pickup Date</label>
-          <input type="date" name="pickup_date_local">
+            <label>Pickup Date</label>
+            <input type="date" name="pickup_date_local">
 
-          <label>Email Address</label>
-          <input type="email" name="client_email_local" id="client_email">
+            <label>Email Address</label>
+            <input type="email" name="client_email_local" id="client_email">
+          </div>
+
+          <!-- Delivery Block -->
+          <div class="form-block">
+            <h3>Delivery Details</h3>
+            <label>Delivery Company</label>
+            <input type="text" name="delivery_company_local">
+
+            <label>Delivery Address</label>
+            <input type="text" name="delivery_address_local">
+
+            <label>Client Reference</label>
+            <input type="text" name="client_reference_local">
+          </div>
+
+          <!-- Shipment Block -->
+          <div class="form-block shipment-block">
+            <h3>Shipment Details</h3>
+            <label>Inco Terms</label>
+            <select name="inco_terms" id="inco_terms">
+              <option value="EXW">EXW</option>
+              <option value="FOB">FOB</option>
+              <option value="CIF">CIF</option>
+              <option value="DAP">DAP</option>
+              <option value="DDP">DDP</option>
+              <option value="DTD">DTD</option>
+            </select>
+
+            <label>Number of Pieces</label>
+            <input type="number" name="pieces">
+
+            <label>Total Weight (kg)</label>
+            <input type="number" step="0.01" name="weight">
+
+            <label>Dimensions (L x W x H in cm)</label>
+            <input type="text" name="dimensions" placeholder="e.g. 120 x 80 x 60">
+
+            <label>Client Notes</label>
+            <textarea name="client_notes_local"></textarea>
+
+            <label>Shipment Documents</label>
+            <input type="file" name="shipment_docs" multiple>
+          </div>
         </div>
 
-        <div class="form-block">
-          <h3>Delivery Details</h3>
-          <label>Delivery Company</label>
-          <input type="text" name="delivery_company_local">
-
-          <label>Delivery Address</label>
-          <input type="text" name="delivery_address_local">
-
-          <label>Client Reference</label>
-          <input type="text" name="client_reference_local">
-        </div>
-
-        <div class="form-block shipment-block">
-          <h3>Shipment Details</h3>
-          <label>Inco Terms</label>
-          <select name="inco_terms" id="inco_terms">
-            <option value="EXW">EXW</option>
-            <option value="FOB">FOB</option>
-            <option value="CIF">CIF</option>
-            <option value="DAP">DAP</option>
-            <option value="DDP">DDP</option>
-            <option value="DTD">DTD</option>
-          </select>
-
-          <label>Number of Pieces</label>
-          <input type="number" name="pieces">
-
-          <label>Total Weight (kg)</label>
-          <input type="number" step="0.01" name="weight">
-
-          <label>Dimensions (L x W x H in cm)</label>
-          <input type="text" name="dimensions" placeholder="e.g. 120 x 80 x 60">
-
-          <label>Client Notes</label>
-          <textarea name="client_notes_local"></textarea>
-
-          <label>Shipment Documents</label>
-          <input type="file" name="shipment_docs" multiple>
-        </div>
-      </div>
-
-      <button type="submit">Submit Collection Request</button>
-    </form>
+        <button type="submit">Submit Collection Request</button>
+      </form>
+    </div>
 
     <script>
       // Autofill email if client is logged in
@@ -488,7 +520,6 @@ def embed_submit_form():
         }
       }
 
-      // Trigger on load
       window.onload = checkLocal;
     </script>
     """
