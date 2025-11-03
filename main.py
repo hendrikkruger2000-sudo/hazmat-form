@@ -248,28 +248,23 @@ def home():
             background: #F5F5F5;
           }
           header {
-            background: linear-gradient(to right, #388E3C, #C8E6C9);
+            background: linear-gradient(to bottom, #388E3C, #A5D6A7, #F1F8E9);
             padding: 1rem;
             text-align: center;
           }
           header img {
             height: 60px;
-          }
-          .container {
-            display: flex;
-            min-height: 80vh;
-          }
-          nav {
-            width: 220px;
-            background: #ffffff;
-            padding: 2rem 1rem;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-          }
-          nav button {
-            display: block;
-            width: 100%;
             margin-bottom: 1rem;
-            padding: 0.75rem;
+          }
+          .nav-bar {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+          }
+          .nav-bar button {
+            padding: 0.5rem 1rem;
             background-color: #388E3C;
             color: white;
             border: none;
@@ -277,72 +272,82 @@ def home():
             font-size: 1rem;
             cursor: pointer;
           }
-          nav button:hover {
+          .nav-bar button:hover {
             background-color: #2E7D32;
           }
           main {
-            flex: 1;
             padding: 2rem;
+            max-width: 900px;
+            margin: auto;
             background: #FAFAFA;
           }
           footer {
-            background: linear-gradient(to right, #388E3C, #C8E6C9);
-            color: white;
+            background: linear-gradient(to right, #388E3C, #A5D6A7, #F1F8E9);
+            color: #333;
             text-align: center;
             padding: 1rem;
+            font-size: 0.9rem;
           }
         </style>
       </head>
       <body>
         <header>
           <img src="/logo.png" alt="Hazmat Logo">
-        </header>
-        <div class="container">
-          <nav>
+          <div class="nav-bar">
+            <button onclick="loadContent('home')">Home</button>
             <button onclick="loadContent('login')">Login / Sign Up</button>
-            <button onclick="loadContent('book')">Book a Collection</button>
+            <button onclick="loadContent('submit')">Book a Collection</button>
             <button onclick="loadContent('track')">Track Shipments</button>
             <button onclick="loadContent('contact')">Contact Us</button>
             <button onclick="loadContent('complaint')">File a Complaint</button>
             <button onclick="loadContent('rate')">Rate Our Services</button>
-          </nav>
-          <main id="content">
-            <h2>Welcome to the Hazmat Collection System</h2>
-            <p>
-                The Hazmat Collection System is your all-in-one platform for booking, tracking, and managing hazardous material shipments — built for speed, simplicity, and global reach. Whether you're a local client or operating across borders, our system empowers you to:
-            </p>
-            <ul>
-                <li>📦 Book collections effortlessly with a streamlined digital form</li>
-                <li>📄 Upload all required documents directly — no printing, no email chains</li>
-                <li>🔔 Receive real-time updates on every step of your shipment</li>
-                </ul>
-            <p>
-                What sets us apart? No more back-and-forth with operations. No more missing paperwork. No more delays. Just a seamless, timeous experience that keeps your logistics moving forward — paperless, painless, and powerful.
-            </p>
-            </main>
-            </div>
-            <footer>
-                <p>Hazmat Global Logistics | Johannesburg | Cape Town | Durban</p>
-            </footer>
-
+          </div>
+        </header>
+        <main id="content">
+          <h2>Welcome to the Hazmat Collection System</h2>
+          <p>
+            The Hazmat Collection System is your all-in-one platform for booking, tracking, and managing hazardous material shipments — built for speed, simplicity, and global reach. Whether you're a local client or operating across borders, our system empowers you to:
+          </p>
+          <ul>
+            <li>📦 Book collections effortlessly with a streamlined digital form</li>
+            <li>📄 Upload all required documents directly — no printing, no email chains</li>
+            <li>🔔 Receive real-time updates on every step of your shipment</li>
+          </ul>
+          <p>
+            What sets us apart? No more back-and-forth with operations. No more missing paperwork. No more delays. Just a seamless, timeous experience that keeps your logistics moving forward — paperless, painless, and powerful.
+          </p>
+        </main>
+        <footer>
+          Hazmat Global Logistics | Johannesburg | Cape Town | Durban | support@hazmatglobal.com
+        </footer>
         <script>
-function loadContent(section) {
-  const content = document.getElementById("content");
-
-  fetch(`/embed/${section}`)
-    .then(res => {
-      if (!res.ok) throw new Error("Failed to load content");
-      return res.text();
-    })
-    .then(html => {
-      content.innerHTML = html;
-    })
-    .catch(err => {
-      content.innerHTML = `<p style="color:red;">⚠️ Could not load section: ${section}</p>`;
-      console.error(err);
-    });
-}
-</script>
+          function loadContent(section) {
+            const content = document.getElementById("content");
+            if (section === "home") {
+              content.innerHTML = `<h2>Welcome to the Hazmat Collection System</h2>
+                <p>The Hazmat Collection System is your all-in-one platform for booking, tracking, and managing hazardous material shipments — built for speed, simplicity, and global reach. Whether you're a local client or operating across borders, our system empowers you to:</p>
+                <ul>
+                  <li>📦 Book collections effortlessly with a streamlined digital form</li>
+                  <li>📄 Upload all required documents directly — no printing, no email chains</li>
+                  <li>🔔 Receive real-time updates on every step of your shipment</li>
+                </ul>
+                <p>What sets us apart? No more back-and-forth with operations. No more missing paperwork. No more delays. Just a seamless, timeous experience that keeps your logistics moving forward — paperless, painless, and powerful.</p>`;
+            } else {
+              fetch(`/embed/${section}`)
+                .then(res => {
+                  if (!res.ok) throw new Error("Failed to load content");
+                  return res.text();
+                })
+                .then(html => {
+                  content.innerHTML = html;
+                })
+                .catch(err => {
+                  content.innerHTML = `<p style="color:red;">⚠️ Could not load section: ${section}</p>`;
+                  console.error(err);
+                });
+            }
+          }
+        </script>
       </body>
     </html>
     """
