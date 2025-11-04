@@ -478,7 +478,23 @@ def embed_rate():
     <br><button>Submit Rating</button>
     """
 
-
+@app.post("/submit")
+async def submit_collection(
+    serviceType: str = Form(...),
+    collection_company_local: str = Form(...),
+    collection_address_local: str = Form(...),
+    pickup_date_local: str = Form(...),
+    delivery_company_local: str = Form(...),
+    delivery_address_local: str = Form(...),
+    client_reference_local: str = Form(""),
+    client_notes_local: str = Form(""),
+    collection_email_local: str = Form(""),
+    delivery_email_local: str = Form(""),
+    shipment_docs: list[UploadFile] = File([])
+):
+    pass
+        # now you can use these variables directly
+    # e.g. collection_company_local, collection_email_local, etc.
 
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
@@ -780,31 +796,38 @@ def get_completed():
     return [{"ops": r[0], "company": r[1], "delivery_date": r[2], "time": r[3], "signed_by": r[4], "document": r[5], "pod": r[6]} for r in rows]
 
 # NEW: email helper — attaches waybill + all uploaded docs, sends from jnb@hazglobal.com
-def send_confirmation_email(to_email, subject, body, attachments=None, cc_email=None):
+def send_confirmation_email(to_email: str, subject: str, body: str, attachments: list, cc_email: str = ""):
+    if not (SMTP_SERVER and SMTP_USER and SMTP_PASS and SMTP_PORT):
+        print("❌ SMTP not configured. Skipping email.")
+        return
+
     msg = MIMEMultipart()
     msg["From"] = SMTP_USER
     msg["To"] = to_email
+    msg["Subject"] = subject
     if cc_email:
         msg["Cc"] = cc_email
-    msg["Subject"] = subject
 
     msg.attach(MIMEText(body, "plain"))
 
-    # Attach files
-    if attachments:
-        for path in attachments:
+    for path in attachments:
+        try:
             with open(path, "rb") as f:
                 part = MIMEBase("application", "octet-stream")
                 part.set_payload(f.read())
             encoders.encode_base64(part)
             part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(path)}")
             msg.attach(part)
+        except Exception as e:
+            print(f"⚠️ Failed to attach {path}: {e}")
 
+    recipients = [to_email] + ([cc_email] if cc_email else [])
     context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls(context=context)
         server.login(SMTP_USER, SMTP_PASS)
-        server.send_message(msg)
-
+        server.sendmail(SMTP_USER, recipients, msg.as_string())
+    print(f"✅ Email sent to {to_email}{' and ' + cc_email if cc_email else ''}")
 
 @app.post("/submit")
 async def submit(request: Request):
@@ -878,22 +901,22 @@ async def submit(request: Request):
     pdf_path = f"static/waybills/waybill_{request_id}.pdf"
     generate_pdf({
         "reference_number": reference_number,
-        "service_type": service_type,
-        "client_reference": client_reference,
-        "pickup_date": collection_date,
-        "inco_terms": inco_terms,
-        "collection_company": collection_company,
-        "collection_address": collection_address,
-        "collection_region": collection_region,
-        "collection_person": collection_person,
-        "collection_number": collection_number,
-        "collection_email": collection_email,  # ✅ add this
-        "delivery_company": delivery_company,
-        "delivery_address": delivery_address,
-        "delivery_person": delivery_person,
-        "delivery_number": delivery_number,
-        "delivery_email": delivery_email,  # ✅ add this
-        "client_notes": client_notes
+        "service_type": service_type or "—",
+        "client_reference": client_reference or "—",
+        "pickup_date": collection_date or "—",
+        "inco_terms": inco_terms or "N/A",
+
+        "collection_company": collection_company or "—",
+        "collection_address": collection_address or "—",
+        "collection_person": collection_person or "—",
+        "collection_number": collection_number or "—",
+
+        "delivery_company": delivery_company or "—",
+        "delivery_address": delivery_address or "—",
+        "delivery_person": delivery_person or "—",
+        "delivery_number": delivery_number or "—",
+
+        "client_notes": client_notes or ""
     }, request_id, qr_path, pdf_path)
 
     # Update DB with pdf path

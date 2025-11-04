@@ -1,5 +1,5 @@
 # main.py
-from fastapi import FastAPI, Request, UploadFile, Form, File
+from fastapi import FastAPI, Request, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
@@ -10,13 +10,6 @@ from reportlab.lib.units import mm
 from reportlab.lib.colors import HexColor
 import sqlite3, json, os
 
-# NEW: email + dotenv deps
-import smtplib, ssl
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-from dotenv import load_dotenv
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -24,15 +17,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 os.makedirs("static/waybills", exist_ok=True)
 os.makedirs("static/qrcodes", exist_ok=True)
 os.makedirs("static/uploads", exist_ok=True)
-os.makedirs("static/backups", exist_ok=True)
-
-# NEW: load SMTP configuration
-load_dotenv()
-SMTP_SERVER = os.getenv("SMTP_SERVER", "")
-SMTP_PORT = int(os.getenv("SMTP_PORT") or "587")
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASS = os.getenv("SMTP_PASS", "")
-OPS_CC = os.getenv("OPS_CC", "")  # optional CC to ops
 
 def init_db():
     if os.path.exists("hazmat.db"):
@@ -140,7 +124,6 @@ def init_db():
         conn.close()
 
 init_db()
-
 def get_next_reference_number():
     counter_path = "static/backups/ref_counter.txt"
 
@@ -162,6 +145,7 @@ def get_next_reference_number():
         f.write(str(new_id))
 
     return f"HAZJNB{str(new_id).zfill(4)}"
+
 
 def backup_database():
     os.makedirs("static/backups", exist_ok=True)
@@ -370,156 +354,6 @@ def home():
     </html>
     """
 
-@app.get("/embed/login", response_class=HTMLResponse)
-def embed_login():
-    return """
-    <h2>Client Login / Sign Up</h2>
-    <input type="email" id="email" placeholder="Email" style="width:100%; margin-bottom:8px;">
-    <input type="password" id="password" placeholder="Password" style="width:100%; margin-bottom:8px;">
-    <button onclick="login()">Login</button>
-    <p id="login-status" style="color:red;"></p>
-    <hr>
-    <h3>Sign Up</h3>
-    <input type="text" id="signup-name" placeholder="Name" style="width:100%; margin-bottom:8px;">
-    <input type="email" id="signup-email" placeholder="Email" style="width:100%; margin-bottom:8px;">
-    <input type="password" id="signup-password" placeholder="Password" style="width:100%; margin-bottom:8px;">
-    <button onclick="signup()">Sign Up</button>
-    <p id="signup-status" style="color:green;"></p>
-    <script>
-      function login() {
-        fetch("/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: document.getElementById("email").value,
-            password: document.getElementById("password").value
-          })
-        }).then(res => res.json()).then(data => {
-          document.getElementById("login-status").innerText = data.message;
-        });
-      }
-      function signup() {
-        fetch("/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: document.getElementById("signup-name").value,
-            email: document.getElementById("signup-email").value,
-            password: document.getElementById("signup-password").value
-          })
-        }).then(res => res.json()).then(data => {
-          document.getElementById("signup-status").innerText = data.message;
-        });
-      }
-    </script>
-    """
-
-@app.get("/embed/track", response_class=HTMLResponse)
-def embed_track():
-    return """
-    <h2>Track Your Shipment</h2>
-    <input type="text" id="track-ref" placeholder="Enter HAZJNB Reference" style="width:100%; margin-bottom:8px;">
-    <button onclick="trackShipment()">Track</button>
-    <div id="track-result" style="margin-top:1rem;"></div>
-    <script>
-      function trackShipment() {
-        const ref = document.getElementById("track-ref").value;
-        fetch(`/driver/${ref}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.length === 0) {
-              document.getElementById("track-result").innerText = "No shipment found.";
-            } else {
-              document.getElementById("track-result").innerHTML = "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
-            }
-          });
-      }
-    </script>
-    """
-
-@app.get("/embed/contact", response_class=HTMLResponse)
-def embed_contact():
-    return """
-    <h2>Contact Us</h2>
-    <p>📍 Johannesburg HQ: 123 Hazmat Lane, Rand West City</p>
-    <p>📍 Cape Town Branch: 456 Coastal Drive</p>
-    <p>📍 Durban Hub: 789 Portside Avenue</p>
-    <p>📧 Email: support@hazmatglobal.com</p>
-    <p>📞 Phone: +27 11 555 1234</p>
-    """
-
-@app.get("/embed/complaint", response_class=HTMLResponse)
-def embed_complaint():
-    return """
-    <h2>File a Complaint</h2>
-    <form>
-      <label>Your Name</label><input type="text" style="width:100%; margin-bottom:8px;">
-      <label>Your Email</label><input type="email" style="width:100%; margin-bottom:8px;">
-      <labelReference Number</label><input type="text" style="width:100%; margin-bottom:8px;">
-      <label>Complaint Details</label><textarea style="width:100%; height:100px;"></textarea>
-      <button type="submit">Submit Complaint</button>
-    </form>
-    """
-
-@app.get("/embed/rate", response_class=HTMLResponse)
-def embed_rate():
-    return """
-    <h2>Rate Our Services</h2>
-    <p>How would you rate your experience?</p>
-    <select>
-      <option>⭐ Poor</option>
-      <option>⭐⭐ Fair</option>
-      <option>⭐⭐⭐ Good</option>
-      <option>⭐⭐⭐⭐ Very Good</option>
-      <option>⭐⭐⭐⭐⭐ Excellent</option>
-    </select>
-    <br><br>
-    <textarea placeholder="Additional feedback..." style="width:100%; height:100px;"></textarea>
-    <br><button>Submit Rating</button>
-    """
-
-
-
-@app.get("/favicon.ico", include_in_schema=False)
-def favicon():
-    return FileResponse("static/icon.png")
-
-@app.get("/ping")
-def ping():
-    return {"status": "awake"}
-
-@app.get("/ops/unassigned")
-def get_unassigned():
-    conn = sqlite3.connect("hazmat.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT reference_number, collection_company, collection_address, pickup_date
-        FROM requests WHERE assigned_driver IS NULL AND status IS NOT 'Delivered'
-        ORDER BY timestamp DESC
-    """)
-    rows = cursor.fetchall()
-    conn.close()
-    return [{"hazjnb_ref": r[0], "company": r[1], "address": r[2], "pickup_date": r[3]} for r in rows]
-
-@app.get("/ops/collections")
-def get_available_collections():
-    conn = sqlite3.connect("hazmat.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT reference_number, collection_company, collection_address, pickup_date
-        FROM requests
-        WHERE assigned_driver IS NULL AND status IS NOT 'Delivered'
-        ORDER BY timestamp DESC
-    """)
-    rows = cursor.fetchall()
-    conn.close()
-    return [{
-        "hazjnb_ref": r[0],
-        "company": r[1],
-        "address": r[2],
-        "pickup_date": r[3]
-    } for r in rows]
-
 @app.get("/embed/submit", response_class=HTMLResponse)
 def embed_submit_form():
     return """
@@ -638,10 +472,6 @@ def embed_submit_form():
               <option value="CIF" disabled hidden>CIF</option>
             </select>
 
-            <!-- NEW: Collection Date -->
-            <label>Collection Date</label>
-            <input type="date" name="collection_date">
-
             <label>Shipment Details</label>
             <div id="pieces">
               <div class="piece-row">
@@ -662,11 +492,11 @@ def embed_submit_form():
                 if (!container) return;
                 var row = document.createElement('div');
                 row.className = 'piece-row';
-                row.innerHTML = '<input type\\'number\\' name\\'length[]\\' placeholder\\'Length (cm)\\'>'
-                              + '<input type\\'number\\' name\\'width[]\\' placeholder\\'Width (cm)\\'>'
-                              + '<input type\\'number\\' name\\'height[]\\' placeholder\\'Height (cm)\\'>'
-                              + '<input type\\'number\\' name\\'weight[]\\' placeholder\\'Weight (kg)\\'>'
-                              + '<input type\\'number\\' name\\'quantity[]\\' placeholder\\'Quantity\\'>';
+                row.innerHTML = '<input type=\\'number\\' name=\\'length[]\\' placeholder=\\'Length (cm)\\'>'
+                              + '<input type=\\'number\\' name=\\'width[]\\' placeholder=\\'Width (cm)\\'>'
+                              + '<input type=\\'number\\' name=\\'height[]\\' placeholder=\\'Height (cm)\\'>'
+                              + '<input type=\\'number\\' name=\\'weight[]\\' placeholder=\\'Weight (kg)\\'>'
+                              + '<input type=\\'number\\' name=\\'quantity[]\\' placeholder=\\'Quantity\\'>';
                 container.appendChild(row);
               })()"
             >+ Add Piece</button>
@@ -683,6 +513,291 @@ def embed_submit_form():
       </form>
     </div>
     """
+
+@app.get("/embed/login", response_class=HTMLResponse)
+def embed_login():
+    return """
+    <h2>Client Login / Sign Up</h2>
+    <input type="email" id="email" placeholder="Email" style="width:100%; margin-bottom:8px;">
+    <input type="password" id="password" placeholder="Password" style="width:100%; margin-bottom:8px;">
+    <button onclick="login()">Login</button>
+    <p id="login-status" style="color:red;"></p>
+    <hr>
+    <h3>Sign Up</h3>
+    <input type="text" id="signup-name" placeholder="Name" style="width:100%; margin-bottom:8px;">
+    <input type="email" id="signup-email" placeholder="Email" style="width:100%; margin-bottom:8px;">
+    <input type="password" id="signup-password" placeholder="Password" style="width:100%; margin-bottom:8px;">
+    <button onclick="signup()">Sign Up</button>
+    <p id="signup-status" style="color:green;"></p>
+    <script>
+      function login() {
+        fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: document.getElementById("email").value,
+            password: document.getElementById("password").value
+          })
+        }).then(res => res.json()).then(data => {
+          document.getElementById("login-status").innerText = data.message;
+        });
+      }
+      function signup() {
+        fetch("/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: document.getElementById("signup-name").value,
+            email: document.getElementById("signup-email").value,
+            password: document.getElementById("signup-password").value
+          })
+        }).then(res => res.json()).then(data => {
+          document.getElementById("signup-status").innerText = data.message;
+        });
+      }
+    </script>
+    """
+@app.get("/embed/track", response_class=HTMLResponse)
+def embed_track():
+    return """
+    <h2>Track Your Shipment</h2>
+    <input type="text" id="track-ref" placeholder="Enter HAZJNB Reference" style="width:100%; margin-bottom:8px;">
+    <button onclick="trackShipment()">Track</button>
+    <div id="track-result" style="margin-top:1rem;"></div>
+    <script>
+      function trackShipment() {
+        const ref = document.getElementById("track-ref").value;
+        fetch(`/driver/${ref}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.length === 0) {
+              document.getElementById("track-result").innerText = "No shipment found.";
+            } else {
+              document.getElementById("track-result").innerHTML = "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+            }
+          });
+      }
+    </script>
+    """
+
+@app.get("/embed/contact", response_class=HTMLResponse)
+def embed_contact():
+    return """
+    <h2>Contact Us</h2>
+    <p>📍 Johannesburg HQ: 123 Hazmat Lane, Rand West City</p>
+    <p>📍 Cape Town Branch: 456 Coastal Drive</p>
+    <p>📍 Durban Hub: 789 Portside Avenue</p>
+    <p>📧 Email: support@hazmatglobal.com</p>
+    <p>📞 Phone: +27 11 555 1234</p>
+    """
+
+@app.get("/embed/complaint", response_class=HTMLResponse)
+def embed_complaint():
+    return """
+    <h2>File a Complaint</h2>
+    <form>
+      <label>Your Name</label><input type="text" style="width:100%; margin-bottom:8px;">
+      <label>Your Email</label><input type="email" style="width:100%; margin-bottom:8px;">
+      <labelReference Number</label><input type="text" style="width:100%; margin-bottom:8px;">
+      <label>Complaint Details</label><textarea style="width:100%; height:100px;"></textarea>
+      <button type="submit">Submit Complaint</button>
+    </form>
+    """
+
+@app.get("/embed/rate", response_class=HTMLResponse)
+def embed_rate():
+    return """
+    <h2>Rate Our Services</h2>
+    <p>How would you rate your experience?</p>
+    <select>
+      <option>⭐ Poor</option>
+      <option>⭐⭐ Fair</option>
+      <option>⭐⭐⭐ Good</option>
+      <option>⭐⭐⭐⭐ Very Good</option>
+      <option>⭐⭐⭐⭐⭐ Excellent</option>
+    </select>
+    <br><br>
+    <textarea placeholder="Additional feedback..." style="width:100%; height:100px;"></textarea>
+    <br><button>Submit Rating</button>
+    """
+
+
+@app.get("/embed/submit", response_class=HTMLResponse)
+def embed_submit_form():
+    return """
+    <h2>Book a Hazmat Collection</h2>
+    <form action="/submit" method="post" enctype="multipart/form-data">
+      <label>Service Type</label>
+      <select name="serviceType">
+        <option value="local">Local</option>
+        <option value="export">Export</option>
+        <option value="import">Import</option>
+      </select>
+
+      <label>Collection Company</label>
+      <input type="text" name="collection_company_local">
+
+      <label>Collection Address</label>
+      <input type="text" name="collection_address_local">
+
+      <label>Pickup Date</label>
+      <input type="date" name="pickup_date_local">
+
+      <label>Delivery Company</label>
+      <input type="text" name="delivery_company_local">
+
+      <label>Delivery Address</label>
+      <input type="text" name="delivery_address_local">
+
+      <label>Client Reference</label>
+      <input type="text" name="client_reference_local">
+
+      <label>Client Notes</label>
+      <textarea name="client_notes_local"></textarea>
+
+      <label>Shipment Documents</label>
+      <input type="file" name="shipment_docs" multiple>
+
+      <button type="submit">Submit Collection Request</button>
+    </form>
+    """
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse("static/icon.png")
+
+@app.get("/ping")
+def ping():
+    return {"status": "awake"}
+
+@app.get("/ops/unassigned")
+def get_unassigned():
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT reference_number, collection_company, collection_address, pickup_date
+        FROM requests WHERE assigned_driver IS NULL AND status IS NOT 'Delivered'
+        ORDER BY timestamp DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"hazjnb_ref": r[0], "company": r[1], "address": r[2], "pickup_date": r[3]} for r in rows]
+
+@app.get("/ops/collections")
+def get_available_collections():
+    conn = sqlite3.connect("hazmat.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT reference_number, collection_company, collection_address, pickup_date
+        FROM requests
+        WHERE assigned_driver IS NULL AND status IS NOT 'Delivered'
+        ORDER BY timestamp DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [{
+        "hazjnb_ref": r[0],
+        "company": r[1],
+        "address": r[2],
+        "pickup_date": r[3]
+    } for r in rows]
+
+@app.get("/submit", response_class=HTMLResponse)
+def submit_form():
+    return """
+    <html>
+      <head>
+        <title>Book a Hazmat Collection</title>
+        <link rel="icon" href="/icon.png" type="image/png">
+        <style>
+          body { font-family:Segoe UI; padding:2rem; background:#ECEFF1; }
+          h1 { color:#D32F2F; text-align:center; }
+          form { max-width:600px; margin:auto; background:white; padding:2rem; border-radius:8px; }
+          label { display:block; margin-top:1rem; font-weight:bold; }
+          input, textarea, select {
+            width:100%; padding:0.5rem; margin-top:0.5rem;
+            border:1px solid #B0BEC5; border-radius:4px;
+          }
+          button {
+            margin-top:2rem; padding:0.75rem 1.5rem;
+            background-color:#388E3C; color:white;
+            border:none; border-radius:4px;
+            font-size:1rem;
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Book a Hazmat Collection</h1>
+        <h2 style="text-align:center;">Client Login</h2>
+        <div id="login-section" style="max-width:600px; margin:auto; background:white; padding:1rem; border-radius:8px;">
+         <input type="email" id="email" placeholder="Email" style="margin-bottom:8px; width:100%; padding:8px;">
+        <input type="password" id="password" placeholder="Password" style="margin-bottom:8px; width:100%; padding:8px;">
+        <button type="button" onclick="login()" style="padding:8px 16px; background-color:#D32F2F; color:white; border:none; border-radius:4px;">Login</button>
+        <p id="login-status" style="color:red; margin-top:8px;"></p>
+        </div>
+        <form action="/submit" method="post" enctype="multipart/form-data">
+          <label>Service Type</label>
+          <select name="serviceType">
+            <option value="local">Local</option>
+            <option value="export">Export</option>
+            <option value="import">Import</option>
+          </select>
+
+          <label>Collection Company</label>
+          <input type="text" name="collection_company_local">
+
+          <label>Collection Address</label>
+          <input type="text" name="collection_address_local">
+
+          <label>Pickup Date</label>
+          <input type="date" name="pickup_date_local">
+
+          <label>Delivery Company</label>
+          <input type="text" name="delivery_company_local">
+
+          <label>Delivery Address</label>
+          <input type="text" name="delivery_address_local">
+
+          <label>Client Reference</label>
+          <input type="text" name="client_reference_local">
+
+          <label>Client Notes</label>
+          <textarea name="client_notes_local"></textarea>
+
+          <label>Shipment Documents</label>
+          <input type="file" name="shipment_docs" multiple>
+
+          <button type="submit">Submit Collection Request</button>
+        </form>
+        <script>
+            let clientId = null;
+
+            function login() {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+
+            fetch("/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                clientId = data.client_id;
+                document.getElementById("login-status").innerText = "✅ Logged in as " + data.name;
+                } else {
+                document.getElementById("login-status").innerText = "❌ " + data.message;
+                }
+            });
+            }
+        </script>
+      </body>
+    </html>
+    """
+
+
 
 @app.get("/ops/assigned")
 def get_assigned():
@@ -708,6 +823,7 @@ def get_driver_jobs(code: str):
     rows = cursor.fetchall()
     conn.close()
     return [{"hazjnb_ref": r[0], "company": r[1], "address": r[2], "pickup_date": r[3]} for r in rows]
+
 
 @app.post("/scan_qr")
 def scan_qr(payload: dict):
@@ -742,6 +858,7 @@ def submit_update(payload: dict):
     backup_database()
     return {"status": "update received"}
 
+
 @app.get("/ops/updates")
 def get_updates():
     conn = sqlite3.connect("hazmat.db")
@@ -770,6 +887,7 @@ def submit_completed(payload: dict):
     backup_database()
     return {"status": "completed"}
 
+
 @app.get("/ops/completed")
 def get_completed():
     conn = sqlite3.connect("hazmat.db")
@@ -779,70 +897,42 @@ def get_completed():
     conn.close()
     return [{"ops": r[0], "company": r[1], "delivery_date": r[2], "time": r[3], "signed_by": r[4], "document": r[5], "pod": r[6]} for r in rows]
 
-# NEW: email helper — attaches waybill + all uploaded docs, sends from jnb@hazglobal.com
-def send_confirmation_email(to_email, subject, body, attachments=None, cc_email=None):
-    msg = MIMEMultipart()
-    msg["From"] = SMTP_USER
-    msg["To"] = to_email
-    if cc_email:
-        msg["Cc"] = cc_email
-    msg["Subject"] = subject
-
-    msg.attach(MIMEText(body, "plain"))
-
-    # Attach files
-    if attachments:
-        for path in attachments:
-            with open(path, "rb") as f:
-                part = MIMEBase("application", "octet-stream")
-                part.set_payload(f.read())
-            encoders.encode_base64(part)
-            part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(path)}")
-            msg.attach(part)
-
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
-        server.login(SMTP_USER, SMTP_PASS)
-        server.send_message(msg)
-
+# Remaining routes: /submit, /pdf/{id}, /confirm/{ref}, /thankyou, generate_pdf — already correct in your version
 
 @app.post("/submit")
 async def submit(request: Request):
     form = await request.form()
+    files = await request.form()
+    uploaded_files = request._form.getlist("shipment_docs")
 
-    # Files
-    uploaded_files = form.getlist("shipment_docs")
+    service_type = form.get("serviceType")
 
-    # Core fields (match current frontend names exactly)
-    service_type = form.get("shipment_type") or form.get("serviceType")  # support both if present
-    inco_terms = form.get("inco_terms") if service_type != "local" else "DTD"
+    def get_field(name):
+        return form.get(f"{name}_local") or form.get(f"{name}_export") or form.get(f"{name}_import")
 
-    # Collection
-    collection_company = form.get("collection_company") or ""
-    collection_address = form.get("collection_address") or ""
-    collection_region = form.get("collection_region") or ""  # not stored in DB schema yet
-    collection_person = form.get("collection_contact_name") or ""
-    collection_number = form.get("collection_contact_number") or ""
-    collection_email = form.get("collection_email") or ""
+    def get_inco():
+        if service_type == "local":
+            return "DTD"
+        return form.get("inco_terms_export") or form.get("inco_terms_import") or "N/A"
 
-    # Delivery
-    delivery_company = form.get("delivery_company") or ""
-    delivery_address = form.get("delivery_address") or ""
-    delivery_person = form.get("delivery_contact_name") or ""
-    delivery_number = form.get("delivery_contact_number") or ""
-    delivery_email = form.get("delivery_email") or ""
-
-    # Shipment
-    collection_date = form.get("collection_date") or ""  # maps to DB pickup_date
-    client_reference = form.get("client_reference") or ""
-    client_notes = form.get("shipper_notes") or ""
-
+    collection_company = get_field("collection_company")
+    collection_address = get_field("collection_address")
+    collection_person = get_field("collection_person")
+    collection_number = get_field("collection_number")
+    delivery_company = get_field("delivery_company")
+    delivery_address = get_field("delivery_address")
+    delivery_person = get_field("delivery_person")
+    delivery_number = get_field("delivery_number")
+    client_reference = get_field("client_reference")
+    pickup_date = get_field("pickup_date")
+    client_notes = get_field("client_notes")
+    inco_terms = get_inco()
     timestamp = datetime.now().isoformat()
-    reference_number = get_next_reference_number()
 
-    # Insert into DB
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
+    reference_number = get_next_reference_number()
+
     cursor.execute("""
         INSERT INTO requests (
             reference_number, service_type, collection_company, collection_address, collection_person, collection_number,
@@ -852,51 +942,42 @@ async def submit(request: Request):
     """, (
         reference_number, service_type, collection_company, collection_address, collection_person, collection_number,
         delivery_company, delivery_address, delivery_person, delivery_number,
-        client_reference, collection_date, inco_terms, client_notes, "", timestamp
+        client_reference, pickup_date, inco_terms, client_notes, "", timestamp
     ))
     request_id = cursor.lastrowid
     conn.commit()
     conn.close()
     backup_database()
 
-    # Save uploaded files and collect paths (for email attachments)
-    uploaded_paths = []
     for file in uploaded_files:
         contents = await file.read()
-        save_path = f"static/uploads/{reference_number}_{file.filename}"
-        with open(save_path, "wb") as f:
+        with open(f"static/uploads/{reference_number}_{file.filename}", "wb") as f:
             f.write(contents)
-        uploaded_paths.append(save_path)
 
-    # QR code
+    # ✅ QR code now links to HAZJNB reference number
     qr_url = f"https://hazmat-collection.onrender.com/confirm/{reference_number}"
     qr_img = qrcode.make(qr_url)
     qr_path = f"static/qrcodes/qr_{request_id}.png"
     qr_img.save(qr_path)
 
-    # Generate PDF
     pdf_path = f"static/waybills/waybill_{request_id}.pdf"
     generate_pdf({
         "reference_number": reference_number,
         "service_type": service_type,
-        "client_reference": client_reference,
-        "pickup_date": collection_date,
-        "inco_terms": inco_terms,
         "collection_company": collection_company,
         "collection_address": collection_address,
-        "collection_region": collection_region,
         "collection_person": collection_person,
         "collection_number": collection_number,
-        "collection_email": collection_email,  # ✅ add this
         "delivery_company": delivery_company,
         "delivery_address": delivery_address,
         "delivery_person": delivery_person,
         "delivery_number": delivery_number,
-        "delivery_email": delivery_email,  # ✅ add this
+        "client_reference": client_reference,
+        "pickup_date": pickup_date,
+        "inco_terms": inco_terms,
         "client_notes": client_notes
     }, request_id, qr_path, pdf_path)
 
-    # Update DB with pdf path
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE requests SET pdf_path = ? WHERE id = ?", (pdf_path, request_id))
@@ -904,25 +985,6 @@ async def submit(request: Request):
     conn.close()
     backup_database()
 
-    # Email: choose collection_email first, else delivery_email
-    to_email = collection_email or delivery_email
-    if to_email:
-        subject = f"Hazmat Collection Confirmation • {reference_number}"
-        body = (
-            "Dear Valued Client,\n\n"
-            "We are pleased to confirm that your collection request has been successfully received by the Hazmat Operations team. "
-            "Our specialists are already reviewing the details, and your shipment will be attended to shortly.\n\n"
-            "Warm regards,\nHazmat Global Logistics Team\n"
-        )
-        attachments = [pdf_path] + uploaded_paths
-        try:
-            send_confirmation_email(to_email, subject, body, attachments, cc_email=OPS_CC)
-        except Exception as e:
-            print("❌ Email dispatch failed:", e)
-    else:
-        print("⚠️ No client email provided; skipping confirmation email.")
-
-    # Overlay response
     return HTMLResponse(f"""
     <html>
       <head>
@@ -980,6 +1042,7 @@ def thank_you():
 def confirm(hazjnb_ref: str):
     return HTMLResponse(f"<h1>Driver confirmed request {hazjnb_ref}</h1>")
 
+
 @app.post("/assign")
 def assign_collection(payload: dict):
     driver_code = payload.get("driver_code")
@@ -1030,7 +1093,6 @@ def get_driver_jobs(code: str):
         })
 
     return jobs
-
 @app.get("/ops/backup")
 def trigger_backup():
     backup_database()
@@ -1074,18 +1136,13 @@ def generate_pdf(data, request_id, qr_path, pdf_path):
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
 
-    # Background
     c.setFillColor(HexColor("#ECEFF1"))
     c.rect(0, 0, width, height, fill=1)
 
-    # Logo
     logo_path = "static/logo.png"
     if os.path.exists(logo_path):
-        c.drawImage(logo_path, 20*mm, height - 30*mm,
-                    width=40*mm, height=20*mm,
-                    preserveAspectRatio=True, mask='auto')
+        c.drawImage(logo_path, 20*mm, height - 30*mm, width=40*mm, height=20*mm, preserveAspectRatio=True, mask='auto')
 
-    # Title
     c.setFont("Helvetica-Bold", 22)
     c.setFillColor(HexColor("#D32F2F"))
     c.drawString(70*mm, height - 25*mm, "Hazmat Collection Waybill")
@@ -1103,53 +1160,44 @@ def generate_pdf(data, request_id, qr_path, pdf_path):
         c.setFillColor(HexColor("#212121"))
         c.drawString(25*mm, y, f"{label}:")
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(70*mm, y, value or "—")
-        return y - 7*mm
+        c.drawString(70 * mm, y, value or "—")
+        return y - 7 * mm
 
-    y = height - 50*mm
-
-    # Shipment Details
+    y = height - 50 * mm
     y = section("Shipment Details", y)
-    y = field("Reference Number", data.get("reference_number"), y)
-    y = field("Shipment Type", data.get("service_type"), y)
-    y = field("Client Reference", data.get("client_reference"), y)
-    y = field("Collection Date", data.get("pickup_date"), y)
-    y = field("Inco Terms", data.get("inco_terms") or "N/A", y)
+    y = field("Reference Number", data["reference_number"], y)
+    y = field("Service Type", data["service_type"], y)
+    y = field("Client Reference", data["client_reference"], y)
+    y = field("Pickup Date", data["pickup_date"], y)
+    y = field("Inco Terms", data["inco_terms"] or "N/A", y)
 
-    # Collection
-    y -= 5*mm
+    y -= 5 * mm
     y = section("Collection", y)
-    y = field("Company", data.get("collection_company"), y)
-    y = field("Address", data.get("collection_address"), y)
-    y = field("Region", data.get("collection_region"), y)
-    y = field("Contact Person", data.get("collection_person"), y)
-    y = field("Contact Number", data.get("collection_number"), y)
-    y = field("Email", data.get("collection_email"), y)
+    y = field("Company", data["collection_company"], y)
+    y = field("Address", data["collection_address"], y)
+    y = field("Contact Person", data["collection_person"], y)
+    y = field("Contact Number", data["collection_number"], y)
 
-    # Delivery
-    y -= 5*mm
+    y -= 5 * mm
     y = section("Delivery", y)
-    y = field("Company", data.get("delivery_company"), y)
-    y = field("Address", data.get("delivery_address"), y)
-    y = field("Contact Person", data.get("delivery_person"), y)
-    y = field("Contact Number", data.get("delivery_number"), y)
-    y = field("Email", data.get("delivery_email"), y)
+    y = field("Company", data["delivery_company"], y)
+    y = field("Address", data["delivery_address"], y)
+    y = field("Contact Person", data["delivery_person"], y)
+    y = field("Contact Number", data["delivery_number"], y)
 
-    # Notes
-    y -= 5*mm
-    y = section("Shipper Notes", y)
+    y -= 5 * mm
+    y = section("Client Notes", y)
     c.setFont("Helvetica", 10)
     c.setFillColor(HexColor("#212121"))
-    c.drawString(25*mm, y, data.get("client_notes") or "None")
+    c.drawString(25 * mm, y, data["client_notes"] or "None")
 
     # QR Code
     if os.path.exists(qr_path):
-        c.drawImage(qr_path, width - 50*mm, 20*mm,
-                    width=30*mm, preserveAspectRatio=True, mask='auto')
+        c.drawImage(qr_path, width - 50 * mm, 20 * mm, width=30 * mm, preserveAspectRatio=True, mask='auto')
 
     # Footer
     c.setFont("Helvetica-Oblique", 8)
     c.setFillColor(HexColor("#607D8B"))
-    c.drawString(20*mm, 10*mm, "Generated by Hazmat Global Logistics System")
+    c.drawString(20 * mm, 10 * mm, "Generated by Hazmat Global Logistics System")
 
     c.save()
