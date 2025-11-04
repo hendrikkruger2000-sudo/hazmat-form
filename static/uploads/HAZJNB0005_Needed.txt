@@ -1,0 +1,16 @@
+the collection section needs the following fields in this order:
+
+1. Company Name
+2. Collection Address
+3. Region (Durban, Cape Town, Port Elizabeth, Johannesburg)
+4. Contact Name
+5. Contact Number
+6. Email Address
+
+The Delivery Section Needs to have the following Fields in this order:
+
+1. Company Name
+2. Delivery Address
+3. Contact Name
+4. Contact Number
+5. Email Address
