@@ -145,5 +145,26 @@
     "timestamp": "2025-11-04T21:50:39.535940",
     "assigned_driver": null,
     "status": null
+  },
+  {
+    "id": 8,
+    "reference_number": "HAZJNB0008",
+    "service_type": "export",
+    "collection_company": "",
+    "collection_address": "",
+    "collection_person": "",
+    "collection_number": "",
+    "delivery_company": "",
+    "delivery_address": "",
+    "delivery_person": "",
+    "delivery_number": "",
+    "client_reference": "",
+    "pickup_date": "2025-11-05",
+    "inco_terms": null,
+    "client_notes": "",
+    "pdf_path": "static/waybills/waybill_8.pdf",
+    "timestamp": "2025-11-05T19:03:14.904231",
+    "assigned_driver": null,
+    "status": null
   }
 ]
