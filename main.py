@@ -2,7 +2,7 @@
 from fastapi import FastAPI, Request, UploadFile, Form, File
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from datetime import datetime
+from datetime import datetime, date
 import qrcode
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -20,6 +20,29 @@ from dotenv import load_dotenv
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/debug/smtp")
+def debug_smtp():
+    import socket
+
+    tests = [
+        ("smtp.gmail.com", 587),
+        ("smtp.gmail.com", 465),
+        ("smtp.gmail.com", 25),
+        ("8.8.8.8", 53),  # DNS server test
+    ]
+
+    results = {}
+
+    for host, port in tests:
+        try:
+            s = socket.create_connection((host, port), timeout=5)
+            s.close()
+            results[f"{host}:{port}"] = "✅ Reachable"
+        except Exception as e:
+            results[f"{host}:{port}"] = f"❌ {type(e).__name__}: {e}"
+
+    return results
 
 os.makedirs("static/waybills", exist_ok=True)
 os.makedirs("static/qrcodes", exist_ok=True)
@@ -522,125 +545,168 @@ def get_available_collections():
 
 @app.get("/embed/submit", response_class=HTMLResponse)
 def embed_submit_form():
-    return """
+    today = date.today().isoformat()
+    return f"""
     <h2>Book a Hazmat Collection</h2>
     <style>
-      .form-wrapper { width: 100%; padding: 2rem; box-sizing: border-box; }
-      .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-      .form-block { background: #fff; border: 1px solid #C8E6C9; border-radius: 8px; padding: 2rem; }
-      label { display: block; margin-top: 1rem; font-weight: bold; }
-      input, select, textarea { width: 100%; padding: 0.5rem; margin-top: 0.5rem; border: 1px solid #B0BEC5; border-radius: 4px; }
-      textarea { height: 120px; }
-      .shipment-block { grid-column: span 2; }
-      .piece-row { display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
-      .piece-row input { flex: 1; min-width: 100px; }
-      .add-piece { margin-top: 1rem; background: #2E7D32; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
-      button[type="submit"] { margin-top: 2rem; padding: 0.75rem 1.5rem; background-color: #388E3C; color: white; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; }
+      .form-wrapper {{
+        width: 100%;
+        padding: 2rem;
+        box-sizing: border-box;
+      }}
+      .form-grid {{
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+      }}
+      .form-block {{
+        background: #fff;
+        border: 1px solid #C8E6C9;
+        border-radius: 8px;
+        padding: 2rem;
+      }}
+      h3 {{
+        margin: 0;
+        color: #2E7D32;
+      }}
+      label {{
+        display: block;
+        margin-top: 1rem;
+        font-weight: bold;
+      }}
+      input, select, textarea {{
+        width: 100%;
+        padding: 0.5rem;
+        margin-top: 0.5rem;
+        border: 1px solid #B0BEC5;
+        border-radius: 4px;
+        background-color: #fff;
+      }}
+      textarea {{
+        height: 120px;
+      }}
+      .address-block {{
+        height: 150px;
+        resize: none;
+      }}
+      .shipment-block {{
+        grid-column: span 2;
+      }}
+      .piece-row {{
+        display: flex;
+        gap: 1rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+      }}
+      .piece-row input {{
+        flex: 1;
+        min-width: 120px;
+      }}
+      .add-piece {{
+        margin-top: 1rem;
+        background: #2E7D32;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+      }}
+      button[type="submit"] {{
+        margin-top: 2rem;
+        padding: 0.75rem 1.5rem;
+        background-color: #388E3C;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        cursor: pointer;
+      }}
+      #collection_date {{
+        width: 180px;
+      }}
+      /* Optional class; inline styles will enforce visibility anyway */
+      .missing-field {{
+        border: 3px solid red !important;
+        outline: 2px solid red !important;
+        box-shadow: 0 0 6px red !important;
+        background-color: #fff8f8 !important;
+      }}
     </style>
 
     <div class="form-wrapper">
-      <form action="/submit" method="post" enctype="multipart/form-data">
+      <form id="hazmat-form" action="/submit" method="post" enctype="multipart/form-data" onsubmit="return false;">
         <div class="form-grid">
-          <!-- Collection Section -->
-          <div class="form-block">
-            <h3>Collection Details</h3>
-            <label>Company Name</label>
-            <input type="text" name="collection_company">
-            <label>Collection Address</label>
-            <textarea name="collection_address"></textarea>
-            <label>Region</label>
-            <select name="collection_region">
-              <option value="Johannesburg">Johannesburg</option>
-              <option value="Durban">Durban</option>
-              <option value="Cape Town">Cape Town</option>
-              <option value="Port Elizabeth">Port Elizabeth</option>
-            </select>
-            <label>Contact Name</label>
-            <input type="text" name="collection_contact_name">
-            <label>Contact Number</label>
-            <input type="text" name="collection_contact_number">
-            <label>Email Address</label>
-            <input type="email" name="collection_email" id="collection_email">
-          </div>
-
-          <!-- Delivery Section -->
-          <div class="form-block">
-            <h3>Delivery Details</h3>
-            <label>Company Name</label>
-            <input type="text" name="delivery_company">
-            <label>Delivery Address</label>
-            <textarea name="delivery_address"></textarea>
-            <label>Contact Name</label>
-            <input type="text" name="delivery_contact_name">
-            <label>Contact Number</label>
-            <input type="text" name="delivery_contact_number">
-            <label>Email Address</label>
-            <input type="email" name="delivery_email">
-          </div>
 
           <!-- Shipment Section -->
           <div class="form-block shipment-block">
             <h3>Shipment Information</h3>
 
-            <!-- Shipment type with inline logic to configure inco terms -->
             <label>Shipment Type</label>
-            <select
-              name="shipment_type"
-              id="shipment_type"
-              onchange="(function(typeEl){
-                var type = typeEl.value;
-                var inco = document.getElementById('inco_terms');
-                // Enable all by default
-                for (var i=0;i<inco.options.length;i++){ inco.options[i].disabled = false; inco.options[i].hidden = false; }
-                if (type === 'local') {
-                  // Only DTD, lock select
-                  inco.value = 'DTD';
-                  inco.disabled = true;
-                  for (var i=0;i<inco.options.length;i++){
-                    var opt = inco.options[i];
-                    var isDTD = opt.value === 'DTD';
-                    opt.disabled = !isDTD;
-                    opt.hidden = !isDTD;
-                  }
-                } else {
-                  // No DTD, enable others
-                  inco.disabled = false;
-                  for (var i=0;i<inco.options.length;i++){
-                    var opt = inco.options[i];
-                    var isDTD = opt.value === 'DTD';
-                    opt.disabled = isDTD;
-                    opt.hidden = isDTD;
-                  }
-                  // Set first non-DTD as selected if current is DTD
-                  if (inco.value === 'DTD') {
-                    for (var j=0;j<inco.options.length;j++){
-                      if (inco.options[j].value !== 'DTD'){ inco.options[j].selected = true; break; }
-                    }
-                  }
-                }
-              })(this)"
-            >
+            <select name="shipment_type" id="shipment_type" onchange="(function(typeEl){{ 
+              var type = typeEl.value;
+              var inco = document.getElementById('inco_terms');
+
+              // Reset all inco options visibility
+              for (var i=0; i<inco.options.length; i++) {{
+                inco.options[i].disabled = false;
+                inco.options[i].hidden = false;
+              }}
+
+              if (type === 'local') {{
+                inco.value = 'DTD';
+                inco.disabled = true;
+                // Only show DTD
+                for (var i=0; i<inco.options.length; i++) {{
+                  var opt = inco.options[i];
+                  var isDTD = opt.value === 'DTD';
+                  opt.disabled = !isDTD;
+                  opt.hidden = !isDTD;
+                }}
+              }} else {{
+                // Enable non-DTD terms for export/import
+                inco.disabled = false;
+                for (var i=0; i<inco.options.length; i++) {{
+                  var opt = inco.options[i];
+                  var isDTD = opt.value === 'DTD';
+                  opt.disabled = isDTD;
+                  opt.hidden = isDTD;
+                }}
+                if (inco.value === 'DTD') inco.selectedIndex = 1; // pick first non-DTD
+              }}
+
+              // Region toggles
+              var colSelect = document.getElementById('collection_region');
+              var colImport = document.getElementById('collection_region_import');
+              var delWrap = document.getElementById('delivery_region_wrapper');
+              if (type === 'import') {{
+                colSelect.style.display = 'none';
+                colImport.style.display = 'block';
+                delWrap.style.display = 'block';
+              }} else {{
+                colSelect.style.display = 'block';
+                colImport.style.display = 'none';
+                delWrap.style.display = 'none';
+              }}
+            }})(this)">
               <option value="local" selected>Local</option>
               <option value="export">Export</option>
               <option value="import">Import</option>
             </select>
 
-            <!-- Inco terms prepopulated; initial state for 'local' -->
             <label>Inco Terms</label>
             <select name="inco_terms" id="inco_terms" disabled>
               <option value="DTD" selected>DTD</option>
-              <option value="DDU" disabled hidden>DDU</option>
-              <option value="DDP" disabled hidden>DDP</option>
-              <option value="DAP" disabled hidden>DAP</option>
-              <option value="CPT" disabled hidden>CPT</option>
-              <option value="FOB" disabled hidden>FOB</option>
-              <option value="CIP" disabled hidden>CIP</option>
-              <option value="CIF" disabled hidden>CIF</option>
+              <option value="DDU">DDU</option>
+              <option value="DDP">DDP</option>
+              <option value="DAP">DAP</option>
+              <option value="CPT">CPT</option>
+              <option value="FOB">FOB</option>
+              <option value="CIP">CIP</option>
+              <option value="CIF">CIF</option>
             </select>
 
-            <!-- NEW: Collection Date -->
             <label>Collection Date</label>
-            <input type="date" name="collection_date">
+            <input type="date" id="collection_date" name="collection_date" value="{today}">
 
             <label>Shipment Details</label>
             <div id="pieces">
@@ -652,38 +718,214 @@ def embed_submit_form():
                 <input type="number" name="quantity[]" placeholder="Quantity">
               </div>
             </div>
-
-            <!-- Add piece with inline self-invoking logic -->
-            <button
-              type="button"
-              class="add-piece"
-              onclick="(function(){
-                var container = document.getElementById('pieces');
-                if (!container) return;
-                var row = document.createElement('div');
-                row.className = 'piece-row';
-                row.innerHTML = '<input type\\'number\\' name\\'length[]\\' placeholder\\'Length (cm)\\'>'
-                              + '<input type\\'number\\' name\\'width[]\\' placeholder\\'Width (cm)\\'>'
-                              + '<input type\\'number\\' name\\'height[]\\' placeholder\\'Height (cm)\\'>'
-                              + '<input type\\'number\\' name\\'weight[]\\' placeholder\\'Weight (kg)\\'>'
-                              + '<input type\\'number\\' name\\'quantity[]\\' placeholder\\'Quantity\\'>';
-                container.appendChild(row);
-              })()"
-            >+ Add Piece</button>
+            <button type="button" class="add-piece" onclick="(function(){{ 
+              var container = document.getElementById('pieces');
+              var row = document.createElement('div');
+              row.className = 'piece-row';
+              row.innerHTML =
+                '<input type\\'number\\' name=\\'length[]\\' placeholder=\\'Length (cm)\\'>'
+                +'<input type\\'number\\' name=\\'width[]\\' placeholder=\\'Width (cm)\\'>'
+                +'<input type\\'number\\' name=\\'height[]\\' placeholder=\\'Height (cm)\\'>'
+                +'<input type\\'number\\' name=\\'weight[]\\' placeholder=\\'Weight (kg)\\'>'
+                +'<input type\\'number\\' name=\\'quantity[]\\' placeholder=\\'Quantity\\'>';
+              container.appendChild(row);
+            }})()">+ Add Piece</button>
 
             <label>Shipper Notes</label>
             <textarea name="shipper_notes"></textarea>
 
             <label>Upload Documents</label>
-            <input type="file" name="shipment_docs" multiple>
+            <div class="file-wrapper">
+              <input type="file" name="shipment_docs" multiple>
+            </div>
           </div>
-        </div>
 
+          <!-- Collection Section -->
+          <div class="form-block">
+            <h3>Collection Details</h3>
+
+            <label>Company Name</label>
+            <input type="text" name="collection_company">
+
+            <label>Collection Address</label>
+            <textarea name="collection_address" class="address-block"></textarea>
+
+            <div id="collection_region_wrapper">
+              <label>Region</label>
+              <select id="collection_region" name="collection_region">
+                <option value="Johannesburg">Johannesburg</option>
+                <option value="Durban">Durban</option>
+                <option value="Cape Town">Cape Town</option>
+                <option value="Port Elizabeth">Port Elizabeth</option>
+              </select>
+              <input id="collection_region_import" type="text" value="Import" disabled style="background:#ECEFF1; display:none;">
+            </div>
+
+            <label>Contact Name</label>
+            <input type="text" name="collection_contact_name">
+
+            <label>Contact Number</label>
+            <input type="text" name="collection_contact_number">
+
+            <label>Email Address</label>
+            <input type="email" name="collection_email" id="collection_email">
+          </div>
+
+          <!-- Delivery Section -->
+          <div class="form-block">
+            <h3>Delivery Details</h3>
+
+            <label>Company Name</label>
+            <input type="text" name="delivery_company">
+
+            <label>Delivery Address</label>
+            <textarea name="delivery_address" class="address-block"></textarea>
+
+            <div id="delivery_region_wrapper" style="display:none;">
+              <label>Region</label>
+              <select id="delivery_region" name="delivery_region">
+                <option value="Johannesburg">Johannesburg</option>
+                <option value="Durban">Durban</option>
+                <option value="Cape Town">Cape Town</option>
+                <option value="Port Elizabeth">Port Elizabeth</option>
+              </select>
+            </div>
+
+            <label>Contact Name</label>
+            <input type="text" name="delivery_contact_name">
+
+            <label>Contact Number</label>
+            <input type="text" name="delivery_contact_number">
+
+            <label>Email Address</label>
+            <input type="email" name="delivery_email">
+          </div>
+
+        </div>
         <button type="submit">Submit Collection Request</button>
       </form>
     </div>
-    """
 
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {{
+      const form = document.getElementById("hazmat-form");
+
+      // Enforce inline styles so they win any cascade
+      function applyMissing(el) {{
+        if (!el) return;
+        el.classList.add("missing-field");
+        el.style.setProperty("border", "3px solid red", "important");
+        el.style.setProperty("outline", "2px solid red", "important");
+        el.style.setProperty("box-shadow", "0 0 6px red", "important");
+        el.style.setProperty("background-color", "#fff8f8", "important");
+      }}
+      function clearMissing(el) {{
+        if (!el) return;
+        el.classList.remove("missing-field");
+        el.style.removeProperty("border");
+        el.style.removeProperty("outline");
+        el.style.removeProperty("box-shadow");
+        el.style.removeProperty("background-color");
+      }}
+
+      // Initialize shipment type toggles on page load
+      (function initType() {{
+        const typeEl = document.getElementById("shipment_type");
+        if (typeEl && typeof typeEl.onchange === "function") {{
+          typeEl.onchange();
+        }} else {{
+          // Manually trigger the logic if inline handler isn't set
+          const inco = document.getElementById('inco_terms');
+          for (var i=0; i<inco.options.length; i++) {{
+            inco.options[i].disabled = (inco.options[i].value === 'DTD');
+            inco.options[i].hidden = (inco.options[i].value === 'DTD');
+          }}
+          inco.disabled = true;
+          inco.value = 'DTD';
+          document.getElementById('collection_region').style.display = 'block';
+          document.getElementById('collection_region_import').style.display = 'none';
+          document.getElementById('delivery_region_wrapper').style.display = 'none';
+        }}
+      }})();
+
+      form.addEventListener("submit", function (e) {{
+        e.preventDefault();
+
+        let missing = [];
+        // Base required fields
+        const requiredSelectors = [
+          "input[name='collection_company']",
+          "textarea[name='collection_address']",
+          "input[name='collection_contact_name']",
+          "input[name='collection_contact_number']",
+          "input[name='collection_email']",
+          "input[name='delivery_company']",
+          "textarea[name='delivery_address']",
+          "input[name='delivery_contact_name']",
+          "input[name='delivery_contact_number']",
+          "input[name='delivery_email']",
+          "input[name='collection_date']",
+          "input[type='file'][name='shipment_docs']"
+        ];
+
+        // Add inco_terms only when enabled (export/import)
+        const inco = form.querySelector("select[name='inco_terms']");
+        if (inco && !inco.disabled) {{
+          requiredSelectors.unshift("select[name='inco_terms']");
+        }}
+        // Shipment type should always be present
+        requiredSelectors.unshift("select[name='shipment_type']");
+
+        let note = document.getElementById("form-error-note");
+        if (note) note.remove();
+
+        requiredSelectors.forEach(function (sel) {{
+          const el = form.querySelector(sel);
+          if (!el) return;
+          const isFile = (el.type === "file");
+          const isSelect = (el.tagName === "SELECT");
+          const valueIsEmpty = isFile
+            ? (el.files.length === 0)
+            : (isSelect ? (el.value === "" || el.value == null) : !el.value.trim());
+
+          if (valueIsEmpty) {{
+            applyMissing(isFile ? el.parentElement : el);
+            missing.push(sel);
+          }} else {{
+            clearMissing(isFile ? el.parentElement : el);
+          }}
+        }});
+
+        if (missing.length > 0) {{
+          note = document.createElement("div");
+          note.id = "form-error-note";
+          note.style.color = "white";
+          note.style.background = "#D32F2F";
+          note.style.padding = "0.75rem";
+          note.style.marginTop = "1rem";
+          note.style.border = "1px solid #B71C1C";
+          note.style.borderRadius = "4px";
+          note.style.textAlign = "center";
+          note.style.fontWeight = "bold";
+          note.textContent = "⚠️ Please provide the required information / documents";
+          form.prepend(note);
+
+          // Focus first missing input/select for speed
+          const first = form.querySelector(missing[0]);
+          if (first) {{
+            (first.focus ? first.focus() : null);
+            if (first.scrollIntoView) first.scrollIntoView({{ behavior: "smooth", block: "center" }});
+          }} else {{
+            window.scrollTo({{ top: 0, behavior: "smooth" }});
+          }}
+        }} else {{
+          form.onsubmit = null;
+          form.submit();
+        }}
+      }});
+    }});
+    </script>
+    """
 @app.get("/ops/assigned")
 def get_assigned():
     conn = sqlite3.connect("hazmat.db")
@@ -809,7 +1051,20 @@ def send_confirmation_email(to_email, subject, body, attachments=None, cc_email=
 @app.post("/submit")
 async def submit(request: Request):
     form = await request.form()
+    required_fields = [
+        "shipment_type", "inco_terms", "collection_date",
+        "collection_company", "collection_address", "collection_region",
+        "collection_contact_name", "collection_contact_number", "collection_email",
+        "delivery_company", "delivery_address", "delivery_contact_name",
+        "delivery_contact_number", "delivery_email"
+    ]
 
+    missing = [field for field in required_fields if not form.get(field)]
+    if missing or not form.getlist("shipment_docs"):
+        return HTMLResponse(
+            content=f"<h3>Missing required fields: {', '.join(missing)}</h3>",
+            status_code=400
+        )
     # Files
     uploaded_files = form.getlist("shipment_docs")
 
