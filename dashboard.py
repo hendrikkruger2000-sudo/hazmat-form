@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 )
 import threading, requests
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
-
+from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QDesktopServices, QPixmap
@@ -69,63 +69,136 @@ class TablePoller(QObject):
 class LoginDialog(QDialog):
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("Hazmat Global Login")
+        self.setFixedSize(500, 420)
+
+        # Global style (matches dashboard aesthetics)
         self.setStyleSheet("""
             QDialog {
-                background-color: #1c1c1c;
+                background-color: #F1F8E9;
             }
             QLabel {
-                color: #f2f2f2;
-                font-size: 14px;
-            }
-            QLineEdit {
-                background-color: #2e2e2e;
-                color: #f2f2f2;
-                border: 1px solid #444;
-                padding: 6px;
+                color: #2E7D32;
+                font-size: 16px;
+                font-weight: bold;
+                font-family: 'Segoe UI';
             }
             QPushButton {
-                background-color: #cc0000;
+                background-color: #2E7D32;
                 color: white;
-                font-weight: bold;
+                padding: 8px;
                 border-radius: 6px;
-                padding: 6px;
+                font-size: 14px;
+                font-family: 'Segoe UI';
             }
             QPushButton:hover {
-                background-color: #ff0000;
+                background-color: #388E3C;
+            }
+            QLineEdit {
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #C8E6C9;
+                padding: 8px;
+                border-radius: 4px;
+                font-size: 14px;
+                font-family: 'Segoe UI';
             }
         """)
-        self.setWindowTitle("Hazmat Global Login")
-        layout = QVBoxLayout(self)
 
-        # Logo
+        # ✅ Main layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(20)
+
+        # 🔰 Logo
         logo = QLabel()
         pixmap = QPixmap("static/logo.png")
-        logo.setPixmap(pixmap.scaled(160, 32, Qt.AspectRatioMode.KeepAspectRatio))
+        logo.setPixmap(pixmap.scaledToHeight(70, Qt.TransformationMode.SmoothTransformation))
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(logo)
 
-        # Username / Password / Button setup...
+        # 🧾 Title
+        title = QLabel("Hazmat Global Support Services")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
 
+        # 🔐 Credential Card
+        form_card = QWidget()
+        form_card.setStyleSheet("""
+            QWidget {
+                background-color: #ffffff;
+                border: 1px solid #C8E6C9;
+                border-radius: 10px;
+            }
+        """)
+        form_layout = QVBoxLayout(form_card)
+        form_layout.setContentsMargins(20, 20, 20, 20)
+        form_layout.setSpacing(15)
+
+        # Prompt
+        prompt = QLabel("Enter your credentials:")
+        prompt.setStyleSheet("color: #333333; font-size: 14px; font-family: 'Segoe UI';")
+        form_layout.addWidget(prompt)
+
+        # Username
         self.username_input = QLineEdit()
         self.username_input.setPlaceholderText("Username")
+        form_layout.addWidget(self.username_input)
+
+        # Password
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Password")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        form_layout.addWidget(self.password_input)
 
+        # Login button
         self.login_btn = QPushButton("Login")
+        self.login_btn.setFixedHeight(40)
+        self.login_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2E7D32;
+                color: white;
+                font-weight: bold;
+                font-size: 14px;
+                font-family: 'Segoe UI';
+                border-radius: 6px;
+                padding: 8px;
+            }
+            QPushButton:hover {
+                background-color: #388E3C;
+            }
+        """)
         self.login_btn.clicked.connect(self.handle_login)
+        form_layout.addWidget(self.login_btn)
 
-        layout.addWidget(QLabel("Enter your credentials:"))
-        layout.addWidget(self.username_input)
-        layout.addWidget(self.password_input)
-        layout.addWidget(self.login_btn)
-        self.setLayout(layout)
+        # Error label
+        self.error_label = QLabel("")
+        self.error_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.error_label.setStyleSheet("color: red; font-size: 12px; font-family: 'Segoe UI';")
+        self.error_label.hide()
+        form_layout.addWidget(self.error_label)
 
+        layout.addWidget(form_card)
+
+        # State
         self.role = None
         self.user_code = None
         self.selected_driver_row = None
         self.selected_collection_row = None
         self.selected_driver_code = None
+
+    # ✅ Handle login
+    def handle_login(self):
+        username = self.username_input.text().strip()
+        password = self.password_input.text().strip()
+
+        if username == "admin" and password == "hazmat":
+            self.dashboard = DashboardWindow(role="admin", user_code="ADM001")
+            self.dashboard.showMaximized()
+            self.accept()  # ✅ closes dialog cleanly
+        else:
+            self.error_label.setText("❌ Invalid login. Please try again.")
+            self.error_label.show()
 
     def handle_login(self):
         users = {
@@ -142,6 +215,7 @@ class LoginDialog(QDialog):
             self.role = users[username]["role"]
             self.user_code = users[username]["code"]
             self.accept()
+            self.close()
         else:
             self.username_input.setText("")
             self.password_input.setText("")
@@ -152,43 +226,49 @@ class DashboardWindow(QMainWindow):
             super().__init__()
             self.setStyleSheet("""
                         QMainWindow {
-                            background-color: #1c1c1c;
-                        }
-                        QLabel {
-                            color: #f2f2f2;
-                            font-size: 14px;
-                        }
-                        QPushButton {
-                            background-color: #cc0000;
-                            color: white;
-                            padding: 6px;
-                            border-radius: 4px;
-                        }
-                        QPushButton:hover {
-                            background-color: #ff0000;
-                        }
-                        QLineEdit, QTextEdit {
-                            background-color: #2e2e2e;
-                            color: #f2f2f2;
-                            border: 1px solid #444;
-                            padding: 4px;
-                        }
-                        QTabWidget::pane {
-                            border: 1px solid #444;
-                        }
-                        QTabBar::tab {
-                            background: #333;
-                            color: #f2f2f2;
-                            padding: 8px;
-                        }
-                        QTabBar::tab:selected {
-                            background: #cc0000;
-                        }
+        background-color: #F1F8E9;
+    }
+    QLabel {
+        color: #333333;
+        font-size: 14px;
+        font-family: 'Segoe UI';
+    }
+    QPushButton {
+        background-color: #2E7D32;
+        color: white;
+        padding: 6px;
+        border-radius: 4px;
+        font-family: 'Segoe UI';
+    }
+    QPushButton:hover {
+        background-color: #388E3C;
+    }
+    QLineEdit, QTextEdit {
+        background-color: #ffffff;
+        color: #333333;
+        border: 1px solid #C8E6C9;
+        padding: 4px;
+        font-family: 'Segoe UI';
+    }
+    QTabWidget::pane {
+        border: 1px solid #C8E6C9;
+    }
+    QTabBar::tab {
+        background: #ffffff;
+        color: #2E7D32;
+        padding: 8px;
+        font-family: 'Segoe UI';
+    }
+    QTabBar::tab:selected {
+        background: #2E7D32;
+        color: white;
+
                     """)
             self.setWindowTitle("Hazmat Global Dashboard")
             self.role = role
             self.user_code = user_code
             self.init_ui()
+            self.showMaximized()
 
         def update_unassigned_table(self, data: list):
             unassigned = [
@@ -229,32 +309,58 @@ class DashboardWindow(QMainWindow):
 
         def select_collection(self, row, column):
             item = self.unassigned_table.item(row, 3)
-            if not item or item.text() == "No unassigned collections":
+            if item is None:
+                self.selection_label.setText("⚠️ No address available")
                 return
 
-            # Toggle logic
+            address = item.text().strip()
+            if not address:
+                self.selection_label.setText("⚠️ Invalid collection selected")
+                return
+
             if self.selected_collection_row == row:
                 self.unassigned_table.clearSelection()
                 self.selected_collection_row = None
-                self.map_view.setText("🗺️ Driver location map placeholder")
+                # Reset map
+                self.driver_map.page().runJavaScript("initMap();")
             else:
                 self.unassigned_table.selectRow(row)
                 self.selected_collection_row = row
 
-                # Update map
-                address = item.text()
+                # Drop a pin directly into the embedded map
                 encoded = address.replace(" ", "+")
-                maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded}"
-                self.map_view.setText(f"<a href='{maps_url}' style='color:#f2f2f2;'>View on Google Maps</a>")
-                self.map_view.setOpenExternalLinks(True)
+                js = f"""
+                var geocoder = new google.maps.Geocoder();
+                geocoder.geocode({{ 'address': '{encoded}' }}, function(results, status) {{
+                    if (status === 'OK') {{
+                        new google.maps.Marker({{
+                            map: map,
+                            position: results[0].geometry.location,
+                            icon: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+                            title: "{address}"
+                        }});
+                        map.setCenter(results[0].geometry.location);
+                    }}
+                }});
+                """
+                self.driver_map.page().runJavaScript(js)
 
             self.update_selection_label()
 
         def update_selection_label(self):
-            driver = self.driver_table.item(self.selected_driver_row,
-                                            0).text() if self.selected_driver_row is not None else "None"
-            company = self.unassigned_table.item(self.selected_collection_row,
-                                                 1).text() if self.selected_collection_row is not None else "None"
+            driver = "None"
+            company = "None"
+
+            if self.selected_driver_row is not None:
+                item = self.driver_table.item(self.selected_driver_row, 0)
+                if item:
+                    driver = item.text()
+
+            if self.selected_collection_row is not None:
+                item = self.unassigned_table.item(self.selected_collection_row, 1)
+                if item:
+                    company = item.text()
+
             self.selection_label.setText(f"Selected: {driver} → {company}")
 
         def assign_driver_to_collection(self):
@@ -262,18 +368,31 @@ class DashboardWindow(QMainWindow):
                 self.selection_label.setText("⚠️ Please select both a driver and a collection")
                 return
 
-            # 🔍 Get selected collection ID
-            haz_ref = self.unassigned_table.item(self.selected_collection_row, 0).text()
+            # Safely get haz_ref
+            haz_item = self.unassigned_table.item(self.selected_collection_row, 0)
+            if haz_item is None or not haz_item.text().strip():
+                self.selection_label.setText("⚠️ No valid HAZ Ref for this collection")
+                return
+            haz_ref = haz_item.text().strip()
+
             driver_code = self.selected_driver_code
+            if not driver_code:
+                self.selection_label.setText("⚠️ No driver code selected")
+                return
 
             # 🔁 Send update to backend
             try:
-                requests.post("https://hazmat-collection.onrender.com/assign", json={
+                r = requests.post("https://hazmat-collection.onrender.com/assign", json={
                     "driver_code": driver_code,
                     "hazjnb_ref": haz_ref
-                })
+                }, timeout=5)
+                if r.status_code == 200:
+                    self.selection_label.setText(f"✅ Assigned {driver_code} → {haz_ref}")
+                else:
+                    self.selection_label.setText(f"⚠️ Backend error: {r.status_code}")
             except Exception as e:
-                print("❌ Failed to push assignment:", e)
+                self.selection_label.setText(f"❌ Failed to push assignment: {e}")
+                return
 
             # ✅ Reset selections
             self.driver_table.clearSelection()
@@ -281,7 +400,10 @@ class DashboardWindow(QMainWindow):
             self.selected_driver_row = None
             self.selected_collection_row = None
             self.selected_driver_code = None
-            self.map_view.setText("🗺️ Driver location map placeholder")
+
+            # Reset map safely
+            if hasattr(self, "driver_map"):
+                self.driver_map.page().runJavaScript("initMap();")
 
             # 🔄 Refresh table
             self.poller.fetch_collections()
@@ -364,97 +486,175 @@ class DashboardWindow(QMainWindow):
             tab = QWidget()
             layout = QVBoxLayout(tab)
 
-            # Scaled logo header
+            # Logo
             logo = QLabel()
             pixmap = QPixmap("static/logo.png")
-            logo.setPixmap(pixmap.scaled(200, 40, Qt.AspectRatioMode.KeepAspectRatio))
+            logo.setPixmap(pixmap.scaledToHeight(60, Qt.TransformationMode.SmoothTransformation))
             logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            logo.setContentsMargins(0, 4, 0, 4)
+            logo.setFixedHeight(70)
             layout.addWidget(logo)
 
-            # Expanded map placeholder
-            map_view = QLabel("🗺️ Google Maps integration placeholder")
-            map_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            # Google Map via embedded HTML
+            map_view = QWebEngineView()
+
+            html = f"""
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <style>html, body, #map {{ height:100%; margin:0; padding:0; }}</style>
+                <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCqimNSU2P32FU4be5Us4W87GLuliezU-8"></script>
+                <script>
+                  let map;
+                  let driverMarkers = {{}};
+
+                  function initMap() {{
+                    map = new google.maps.Map(document.getElementById("map"), {{
+                      center: {{ lat: -26.2041, lng: 28.0473 }},
+                      zoom: 10
+                    }});
+                  }}
+
+                  function updateDriver(id, lat, lng) {{
+                    if (driverMarkers[id]) {{
+                      driverMarkers[id].setPosition({{ lat: lat, lng: lng }});
+                    }} else {{
+                      driverMarkers[id] = new google.maps.Marker({{
+                        position: {{ lat: lat, lng: lng }},
+                        map: map,
+                        title: id,
+                        icon: "http://maps.google.com/mapfiles/ms/icons/red-dot.png"
+                      }});
+                    }}
+                  }}
+                </script>
+              </head>
+              <body onload="initMap()">
+                <div id="map"></div>
+              </body>
+            </html>
+            """
+
+            map_view.setHtml(html)
             map_view.setMinimumHeight(500)
-            map_view.setStyleSheet("""
-                background-color: #2e2e2e;
-                color: #f2f2f2;
-                font-size: 16px;
-                border: 1px solid #444;
-                padding: 20px;
-            """)
             layout.addWidget(map_view)
 
+            # Save reference so we can update pins later
+            self.map_view = map_view
+
             return tab
+
+        from PyQt6.QtWebEngineWidgets import QWebEngineView
 
         def build_driver_tab(self):
             tab = QWidget()
             layout = QVBoxLayout(tab)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(0)
+            layout.setContentsMargins(20, 10, 20, 10)
+            layout.setSpacing(10)
 
-            # 🔥 Logo
+            # 🔰 Logo
             logo = QLabel()
             pixmap = QPixmap("static/logo.png")
-            logo.setPixmap(pixmap.scaledToHeight(60))
+            logo.setPixmap(pixmap.scaledToHeight(60, Qt.TransformationMode.SmoothTransformation))
             logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            logo.setContentsMargins(0, 4, 0, 4)
+            logo.setFixedHeight(70)
             layout.addWidget(logo)
 
-            # 🔀 Splitter: Top (tables) vs Bottom (map)
+            # 🔀 Splitter: Top (tables) vs Bottom (map + controls)
             splitter = QSplitter(Qt.Orientation.Vertical)
             splitter.setHandleWidth(2)
 
             # 🔼 Top Widget: Driver + Collection Tables
             top_widget = QWidget()
             top_layout = QHBoxLayout(top_widget)
-            top_layout.setContentsMargins(20, 10, 20, 10)
+            top_layout.setContentsMargins(0, 0, 0, 0)
             top_layout.setSpacing(20)
 
             # 👤 Driver Table
             self.driver_table = QTableWidget()
             self.driver_table.setColumnCount(2)
             self.driver_table.setHorizontalHeaderLabels(["Driver", "Code"])
-            self.driver_table.setRowCount(2)
-            self.driver_table.setItem(0, 0, QTableWidgetItem("Ntivulo Khosa"))
-            self.driver_table.setItem(0, 1, QTableWidgetItem("NK"))
-            self.driver_table.setItem(1, 0, QTableWidgetItem("Kenneth Rangata"))
-            self.driver_table.setItem(1, 1, QTableWidgetItem("KR"))
-            self.driver_table.cellClicked.connect(self.select_driver)
-            self.driver_table.setFixedHeight(160)
             self.driver_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
             self.driver_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+            self.driver_table.setStyleSheet("""
+                QTableWidget {
+                    background-color: #ffffff;
+                    color: #333333;
+                    font-family: 'Segoe UI';
+                    font-size: 14px;
+                    gridline-color: #C8E6C9;
+                }
+                QHeaderView::section {
+                    background-color: #2E7D32;
+                    color: white;
+                    font-size: 14px;
+                    padding: 6px;
+                    font-family: 'Segoe UI';
+                }
+                QTableWidget::item:selected {
+                    background-color: #388E3C;
+                    color: #ffffff;
+                }
+            """)
+            self.driver_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            self.driver_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            self.driver_table.cellClicked.connect(self.select_driver)
             top_layout.addWidget(self.driver_table)
+            # Example driver list (replace with real data or API call)
+            drivers = [
+                {"name": "Ntivulo Khosa", "code": "NK"},
+                {"name": "Kenneth Rangata", "code": "KR"},
+                {"name": "Vusi Nyalungu", "code": "VN"},
+            ]
+
+            self.driver_table.setRowCount(len(drivers))
+            for i, d in enumerate(drivers):
+                self.driver_table.setItem(i, 0, QTableWidgetItem(d["name"]))
+                self.driver_table.setItem(i, 1, QTableWidgetItem(d["code"]))
 
             # 📦 Collection Table
             self.unassigned_table = QTableWidget()
             self.unassigned_table.setColumnCount(4)
             self.unassigned_table.setHorizontalHeaderLabels(["HAZ Ref#", "Company", "Pickup Date", "Address"])
-            self.unassigned_table.cellClicked.connect(self.select_collection)
-            self.unassigned_table.setFixedHeight(160)
             self.unassigned_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
             self.unassigned_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-            top_layout.addWidget(self.unassigned_table)
-
-            # 🎨 Red highlight styling
-            red_style = """
+            self.unassigned_table.setStyleSheet("""
+                QTableWidget {
+                    background-color: #ffffff;
+                    color: #333333;
+                    font-family: 'Segoe UI';
+                    font-size: 14px;
+                    gridline-color: #C8E6C9;
+                }
+                QHeaderView::section {
+                    background-color: #2E7D32;
+                    color: white;
+                    font-size: 14px;
+                    padding: 6px;
+                    font-family: 'Segoe UI';
+                }
                 QTableWidget::item:selected {
-                    background-color: #cc0000;
+                    background-color: #388E3C;
                     color: #ffffff;
                 }
-            """
-            self.driver_table.setStyleSheet(red_style)
-            self.unassigned_table.setStyleSheet(red_style)
+            """)
+            for i in range(4):
+                self.unassigned_table.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+            self.unassigned_table.cellClicked.connect(self.select_collection)
+            top_layout.addWidget(self.unassigned_table)
 
             splitter.addWidget(top_widget)
 
-            # 🔻 Bottom Widget: Map + Assign Controls
+            # 🔻 Bottom Widget: Selection + Assign + Map
             bottom_widget = QWidget()
             bottom_layout = QVBoxLayout(bottom_widget)
-            bottom_layout.setContentsMargins(20, 10, 20, 10)
+            bottom_layout.setContentsMargins(0, 0, 0, 0)
             bottom_layout.setSpacing(10)
 
-            # 🔴 Selection Label
+            # 🧭 Selection Label
             self.selection_label = QLabel("No selection made")
-            self.selection_label.setStyleSheet("color: #f2f2f2; font-size: 14px;")
+            self.selection_label.setStyleSheet("color: #333333; font-size: 14px; font-family: 'Segoe UI';")
             bottom_layout.addWidget(self.selection_label)
 
             # ✅ Assign Button
@@ -462,34 +662,62 @@ class DashboardWindow(QMainWindow):
             self.assign_btn.setFixedHeight(36)
             self.assign_btn.setStyleSheet("""
                 QPushButton {
-                    background-color: #cc0000;
+                    background-color: #2E7D32;
                     color: white;
                     font-weight: bold;
                     border-radius: 6px;
                     font-size: 14px;
+                    font-family: 'Segoe UI';
                 }
                 QPushButton:hover {
-                    background-color: #ff0000;
+                    background-color: #388E3C;
                 }
             """)
             self.assign_btn.clicked.connect(self.assign_driver_to_collection)
             bottom_layout.addWidget(self.assign_btn)
 
-            # 🗺️ Map View
-            self.map_view = QLabel("🗺️ Driver location map placeholder")
-            self.map_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.map_view.setStyleSheet("""
-                background-color: #2e2e2e;
-                color: #f2f2f2;
-                font-size: 14px;
-                border: 1px solid #444;
-                padding: 10px;
-            """)
-            self.map_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-            bottom_layout.addWidget(self.map_view)
+            # 🗺️ Embedded Google Map
+            self.driver_map = QWebEngineView()
+            html = f"""
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <style>html, body, #map {{ height:100%; margin:0; padding:0; }}</style>
+                <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCqimNSU2P32FU4be5Us4W87GLuliezU-8"></script>
+                <script>
+                  let map;
+                  let driverMarkers = {{}};
+                  function initMap() {{
+                    map = new google.maps.Map(document.getElementById("map"), {{
+                      center: {{ lat: -26.2041, lng: 28.0473 }},
+                      zoom: 10
+                    }});
+                  }}
+                  function updateDriver(id, lat, lng) {{
+                    if (driverMarkers[id]) {{
+                      driverMarkers[id].setPosition({{ lat: lat, lng: lng }});
+                    }} else {{
+                      driverMarkers[id] = new google.maps.Marker({{
+                        position: {{ lat: lat, lng: lng }},
+                        map: map,
+                        title: id,
+                        icon: "http://maps.google.com/mapfiles/ms/icons/red-dot.png"
+                      }});
+                    }}
+                  }}
+                </script>
+              </head>
+              <body onload="initMap()">
+                <div id="map"></div>
+              </body>
+            </html>
+            """
+            self.driver_map.setHtml(html)
+            self.driver_map.setMinimumHeight(400)
+            bottom_layout.addWidget(self.driver_map)
 
             splitter.addWidget(bottom_widget)
-            splitter.setStretchFactor(1, 1)  # Let bottom expand
+            splitter.setStretchFactor(1, 1)
 
             layout.addWidget(splitter)
             return tab
@@ -510,25 +738,27 @@ class DashboardWindow(QMainWindow):
             layout.addWidget(title)
 
             self.collections_table = QTableWidget()
-            self.collections_table.setColumnCount(6)
+            self.collections_table.setColumnCount(5)
             self.collections_table.setHorizontalHeaderLabels([
-                "HMJ Ref#", "HAZ Ref#", "Company", "Pickup Date", "Driver", "Status"
+                "HAZ Ref#", "Company", "Pickup Date", "Driver", "Status"
             ])
             self.collections_table.verticalHeader().setDefaultSectionSize(40)
             self.collections_table.horizontalHeader().setStretchLastSection(True)
             self.collections_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
             self.collections_table.setStyleSheet("""
                 QTableWidget {
-                    background-color: #1c1c1c;
-                    color: #f2f2f2;
-                    font-size: 15px;
-                    gridline-color: #444;
+                    background-color: #ffffff;
+                    color: #333333;
+                    font-size: 14px;
+                    gridline-color: #C8E6C9;
+                    font-family: 'Segoe UI';
                 }
                 QHeaderView::section {
-                    background-color: #cc0000;
+                    background-color: #2E7D32;
                     color: white;
-                    font-size: 16px;
-                    padding: 8px;
+                    font-size: 14px;
+                    padding: 6px;
+                    font-family: 'Segoe UI';
                 }
             """)
 
@@ -545,63 +775,166 @@ class DashboardWindow(QMainWindow):
             tab = QWidget()
             layout = QVBoxLayout(tab)
             layout.setContentsMargins(20, 10, 20, 10)
-            layout.setSpacing(10)
+            layout.setSpacing(20)
 
-            # Logo
+            # 🔰 Logo
             logo = QLabel()
             pixmap = QPixmap("static/logo.png")
-            logo.setPixmap(pixmap.scaled(160, 32, Qt.AspectRatioMode.KeepAspectRatio))
+            logo.setPixmap(pixmap.scaledToHeight(60, Qt.TransformationMode.SmoothTransformation))
             logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            logo.setContentsMargins(0, 4, 0, 4)
+            logo.setFixedHeight(70)
             layout.addWidget(logo)
 
-            # Form (compact)
-            form_layout = QHBoxLayout()
+            # 📝 Form Card
+            form_card = QWidget()
+            form_card.setStyleSheet("""
+                QWidget {
+                    background-color: #F1F8E9;
+                    border: 1px solid #C8E6C9;
+                    border-radius: 8px;
+                }
+            """)
+            form_layout = QGridLayout(form_card)
+            form_layout.setContentsMargins(20, 20, 20, 20)
+            form_layout.setHorizontalSpacing(15)
+            form_layout.setVerticalSpacing(10)
+
+            input_style = """
+                QLineEdit, QTextEdit {
+                    background-color: #ffffff;
+                    border: 1px solid #C8E6C9;
+                    border-radius: 4px;
+                    padding: 6px;
+                    font-size: 14px;
+                    font-family: 'Segoe UI';
+                    color: #333333;
+                }
+            """
+
+            # Fields
             self.input_hmj = QLineEdit()
             self.input_hmj.setPlaceholderText("HMJ Ref#")
+            self.input_hmj.setStyleSheet(input_style)
+
             self.input_haz = QLineEdit()
             self.input_haz.setPlaceholderText("HAZ Ref#")
+            self.input_haz.setStyleSheet(input_style)
+
             self.input_company = QLineEdit()
             self.input_company.setPlaceholderText("Company")
+            self.input_company.setStyleSheet(input_style)
+
             self.input_update = QTextEdit()
             self.input_update.setPlaceholderText("Latest Update")
             self.input_update.setFixedHeight(60)
+            self.input_update.setStyleSheet(input_style)
+
             submit_btn = QPushButton("Submit Update")
+            submit_btn.setFixedHeight(36)
+            submit_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #2E7D32;
+                    color: white;
+                    font-weight: bold;
+                    border-radius: 6px;
+                    font-size: 14px;
+                    font-family: 'Segoe UI';
+                }
+                QPushButton:hover {
+                    background-color: #388E3C;
+                }
+            """)
             submit_btn.clicked.connect(self.submit_update)
 
-            form_layout.addWidget(self.input_hmj)
-            form_layout.addWidget(self.input_haz)
-            form_layout.addWidget(self.input_company)
-            form_layout.addWidget(self.input_update)
-            form_layout.addWidget(submit_btn)
-            layout.addLayout(form_layout)
+            # Grid layout
+            form_layout.addWidget(QLabel("HMJ Ref#"), 0, 0)
+            form_layout.addWidget(self.input_hmj, 0, 1)
+            form_layout.addWidget(QLabel("HAZ Ref#"), 0, 2)
+            form_layout.addWidget(self.input_haz, 0, 3)
 
-            # Update Table (clean layout)
+            form_layout.addWidget(QLabel("Company"), 1, 0)
+            form_layout.addWidget(self.input_company, 1, 1, 1, 3)
+
+            form_layout.addWidget(QLabel("Latest Update"), 2, 0)
+            form_layout.addWidget(self.input_update, 2, 1, 1, 3)
+
+            form_layout.addWidget(submit_btn, 3, 3)
+
+            layout.addWidget(form_card)
+
+            # 🔍 Search Bar
+            search_layout = QHBoxLayout()
+            search_label = QLabel("Search HMJ Ref#:")
+            search_label.setStyleSheet("color: #2E7D32; font-weight: bold; font-size: 14px; font-family: 'Segoe UI';")
+
+            self.search_input = QLineEdit()
+            self.search_input.setPlaceholderText("Enter HMJ Ref#")
+            self.search_input.setStyleSheet(input_style)
+            self.search_input.textChanged.connect(self.filter_updates)
+
+            search_layout.addWidget(search_label)
+            search_layout.addWidget(self.search_input)
+            layout.addLayout(search_layout)
+
+            # 📋 Update Table
             self.update_table = QTableWidget()
             self.update_table.setColumnCount(7)
             self.update_table.setHorizontalHeaderLabels([
                 "Ops", "HMJ Ref#", "HAZ Ref#", "Company", "Date", "Time", "Latest Update"
             ])
-            self.update_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
-            for i in range(6):
-                self.update_table.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+            self.update_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
             self.update_table.setStyleSheet("""
                 QTableWidget {
-                    background-color: #1c1c1c;
-                    color: #f2f2f2;
+                    background-color: #ffffff;
+                    color: #333333;
                     font-size: 14px;
-                    gridline-color: #444;
+                    gridline-color: #C8E6C9;
+                    font-family: 'Segoe UI';
                 }
                 QHeaderView::section {
-                    background-color: #cc0000;
+                    background-color: #2E7D32;
                     color: white;
                     font-size: 14px;
                     padding: 6px;
+                    font-family: 'Segoe UI';
                 }
             """)
+            self.update_table.cellClicked.connect(self.handle_update_row_click)
             layout.addWidget(self.update_table)
-            self.load_updates()
 
+            self.load_updates()
             return tab
+
+        def filter_updates(self):
+            """
+            Filters the update_table rows based on the HMJ Ref# entered in the search bar.
+            """
+            query = self.search_input.text().strip().lower()
+            for row in range(self.update_table.rowCount()):
+                item = self.update_table.item(row, 1)  # HMJ Ref# column
+                if item and query in item.text().lower():
+                    self.update_table.setRowHidden(row, False)
+                else:
+                    self.update_table.setRowHidden(row, True)
+
+        def handle_update_row_click(self, row, column):
+            """
+            Auto-fills the form fields when a row is clicked in the update_table.
+            """
+            hmj_item = self.update_table.item(row, 1)
+            haz_item = self.update_table.item(row, 2)
+            company_item = self.update_table.item(row, 3)
+            update_item = self.update_table.item(row, 6)
+
+            if hmj_item:
+                self.input_hmj.setText(hmj_item.text())
+            if haz_item:
+                self.input_haz.setText(haz_item.text())
+            if company_item:
+                self.input_company.setText(company_item.text())
+            if update_item:
+                self.input_update.setPlainText(update_item.text())
 
         def build_completed_tab(self):
             tab = QWidget()
@@ -618,23 +951,26 @@ class DashboardWindow(QMainWindow):
 
             # Table
             self.completed_table = QTableWidget()
-            self.completed_table.setColumnCount(7)
+            self.completed_table.setColumnCount(8)
             self.completed_table.setHorizontalHeaderLabels([
-                "Ops", "Company", "Delivery Date", "Time", "Signed By", "Document", "POD"
+                "Ops", "Client", "Delivery Date", "Time", "Signed By", "Document", "POD", "Invoice#"
             ])
             self.completed_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
             self.completed_table.setStyleSheet("""
                 QTableWidget {
-                    background-color: #1c1c1c;
-                    color: #f2f2f2;
+                    background-color: #ffffff;
+                    color: #333333;
                     font-size: 14px;
-                    gridline-color: #444;
+                    gridline-color: #C8E6C9;
+                    font-family: 'Segoe UI';
                 }
                 QHeaderView::section {
-                    background-color: #cc0000;
+                    background-color: #2E7D32;
                     color: white;
                     font-size: 14px;
                     padding: 6px;
+                    font-family: 'Segoe UI';
+                }
                 }
             """)
             self.completed_table.cellClicked.connect(self.handle_completed_click)
