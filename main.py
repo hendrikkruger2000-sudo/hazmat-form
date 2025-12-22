@@ -1802,30 +1802,73 @@ def send_confirmation_email(to_email, subject, body, attachments=None, cc_email=
     msg = MIMEMultipart()
     msg["From"] = SMTP_USER
     msg["To"] = to_email
+    recipients = [to_email]
     if cc_email:
         msg["Cc"] = cc_email
+        recipients.append(cc_email)
     msg["Subject"] = subject
-    with open("static/logo.png", "rb") as f:
-        logo = MIMEImage(f.read())
-        logo.add_header("Content-ID", "<hazmatlogo>")
-        msg.attach(logo)
-    msg.attach(MIMEText(body, "html"))
+
+    # Inline logo
+    try:
+        with open("static/logo.png", "rb") as f:
+            logo = MIMEImage(f.read())
+            logo.add_header("Content-ID", "<hazmatlogo>")
+            logo.add_header("Content-Disposition", "inline", filename="logo.png")
+            msg.attach(logo)
+    except FileNotFoundError:
+        print("⚠️ static/logo.png not found, skipping logo attachment")
+
+    # HTML body + signature block, reference logo with cid:hazmatlogo
+    html_body = f"""
+    <html>
+      <body>
+        {body}
+        {signature_block}
+      </body>
+    </html>
+    """
+    msg.attach(MIMEText(html_body, "html"))
 
     # Attach files
     if attachments:
         for path in attachments:
-            with open(path, "rb") as f:
-                part = MIMEBase("application", "octet-stream")
-                part.set_payload(f.read())
-            encoders.encode_base64(part)
-            part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(path)}")
-            msg.attach(part)
+            if os.path.exists(path):
+                with open(path, "rb") as f:
+                    part = MIMEBase("application", "octet-stream")
+                    part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(path)}")
+                msg.attach(part)
+            else:
+                print(f"⚠️ Attachment not found: {path}")
 
+    # Send via SMTP (STARTTLS on port 587)
     context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls(context=context)
         server.login(SMTP_USER, SMTP_PASS)
-        server.send_message(msg)
+        server.sendmail(SMTP_USER, recipients, msg.as_string())
 
+@app.post("/api/sendmail")
+async def api_sendmail(request: Request):
+    payload = await request.json()
+    to_email = payload.get("to")
+    subject = payload.get("subject", "Hazmat Global Notification")
+    body = payload.get("body", "<p>No message body provided.</p>")
+    attachments = payload.get("attachments", [])  # list of file paths
+    cc_email = payload.get("cc")  # optional CC
+
+    try:
+        send_confirmation_email(
+            to_email=to_email,
+            subject=subject,
+            body=body,
+            attachments=attachments,
+            cc_email=cc_email
+        )
+        return {"status": "ok", "message": f"Mail sent to {to_email}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/submit")
 async def submit(request: Request):
