@@ -1804,7 +1804,7 @@ SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 # NEW: email helper — attaches waybill + all uploaded docs, sends from jnb@hazglobal.com
 def send_confirmation_email(to_email, subject, body, attachments=None, cc_email=None):
     message = Mail(
-        from_email="hazmat.collections@hazglobal.com",  # your sender identity in SendGrid
+        from_email="hazmat.collections@gmail.com",  # your sender identity in SendGrid
         to_emails=to_email,
         subject=subject,
         html_content=f"<html><body>{body}{signature_block}</body></html>"
