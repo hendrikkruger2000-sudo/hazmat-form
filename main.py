@@ -828,7 +828,8 @@ async def submit_rating(request: Request):
             body=body,
             cc_email=client_email
         )
-        print("Mail Sent Successfully.")
+        status = send_confirmation_email(...)
+        print("📧 SendGrid response:", status)
     except Exception as e:
         print("❌ Rating email dispatch failed:", e)
 
