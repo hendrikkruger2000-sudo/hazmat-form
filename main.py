@@ -826,8 +826,9 @@ async def submit_rating(request: Request):
             to_email="hendrik.krueger@hazglobal.com",   # Ops Manager
             subject=subject,
             body=body,
-            cc_email=client_email                      # Client copied
+            cc_email=client_email
         )
+        print("Mail Sent Successfully.")
     except Exception as e:
         print("❌ Rating email dispatch failed:", e)
 
