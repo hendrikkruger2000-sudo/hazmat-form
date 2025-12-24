@@ -20,6 +20,10 @@ from email.mime.base import MIMEBase
 from email import encoders
 from dotenv import load_dotenv
 from fastapi.responses import RedirectResponse
+import os
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -1796,58 +1800,40 @@ def get_completed():
     return [{"ops": r[0], "company": r[1], "delivery_date": r[2], "time": r[3], "signed_by": r[4], "document": r[5],
              "pod": r[6]} for r in rows]
 
-
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 # NEW: email helper — attaches waybill + all uploaded docs, sends from jnb@hazglobal.com
 def send_confirmation_email(to_email, subject, body, attachments=None, cc_email=None):
-    msg = MIMEMultipart()
-    msg["From"] = SMTP_USER
-    msg["To"] = to_email
-    recipients = [to_email]
+    message = Mail(
+        from_email="hazmat.collections@hazglobal.com",  # your sender identity in SendGrid
+        to_emails=to_email,
+        subject=subject,
+        html_content=f"<html><body>{body}{signature_block}</body></html>"
+    )
+
     if cc_email:
-        msg["Cc"] = cc_email
-        recipients.append(cc_email)
-    msg["Subject"] = subject
+        message.cc = cc_email
 
-    # Inline logo
-    try:
-        with open("static/logo.png", "rb") as f:
-            logo = MIMEImage(f.read())
-            logo.add_header("Content-ID", "<hazmatlogo>")
-            logo.add_header("Content-Disposition", "inline", filename="logo.png")
-            msg.attach(logo)
-    except FileNotFoundError:
-        print("⚠️ static/logo.png not found, skipping logo attachment")
-
-    # HTML body + signature block, reference logo with cid:hazmatlogo
-    html_body = f"""
-    <html>
-      <body>
-        {body}
-        {signature_block}
-      </body>
-    </html>
-    """
-    msg.attach(MIMEText(html_body, "html"))
-
-    # Attach files
+    # Attachments (optional)
     if attachments:
         for path in attachments:
             if os.path.exists(path):
                 with open(path, "rb") as f:
-                    part = MIMEBase("application", "octet-stream")
-                    part.set_payload(f.read())
-                encoders.encode_base64(part)
-                part.add_header("Content-Disposition", f"attachment; filename={os.path.basename(path)}")
-                msg.attach(part)
-            else:
-                print(f"⚠️ Attachment not found: {path}")
+                    data = f.read()
+                import base64
+                from sendgrid.helpers.mail import Attachment, FileContent, FileName, FileType, Disposition
+                encoded = base64.b64encode(data).decode()
+                attachment = Attachment(
+                    FileContent(encoded),
+                    FileName(os.path.basename(path)),
+                    FileType("application/octet-stream"),
+                    Disposition("attachment")
+                )
+                message.attachment = attachment
 
-    # Send via SMTP (STARTTLS on port 587)
-    context = ssl.create_default_context()
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.starttls(context=context)
-        server.login(SMTP_USER, SMTP_PASS)
-        server.sendmail(SMTP_USER, recipients, msg.as_string())
+    sg = SendGridAPIClient(SENDGRID_API_KEY)
+    response = sg.send(message)
+    return response.status_code
+
 
 @app.post("/api/sendmail")
 async def api_sendmail(request: Request):
