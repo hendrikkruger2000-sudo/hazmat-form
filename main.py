@@ -1801,10 +1801,13 @@ def get_completed():
              "pod": r[6]} for r in rows]
 
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-# NEW: email helper — attaches waybill + all uploaded docs, sends from jnb@hazglobal.com
+
 def send_confirmation_email(to_email, subject, body, attachments=None, cc_email=None):
+    from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
+    import base64
+
     message = Mail(
-        from_email="jnb@hazglobal.com",  # your sender identity in SendGrid
+        from_email="jnb@hazglobal.com",  # ✅ must be verified in SendGrid
         to_emails=to_email,
         subject=subject,
         html_content=f"<html><body>{body}{signature_block}</body></html>"
@@ -1819,8 +1822,6 @@ def send_confirmation_email(to_email, subject, body, attachments=None, cc_email=
             if os.path.exists(path):
                 with open(path, "rb") as f:
                     data = f.read()
-                import base64
-                from sendgrid.helpers.mail import Attachment, FileContent, FileName, FileType, Disposition
                 encoded = base64.b64encode(data).decode()
                 attachment = Attachment(
                     FileContent(encoded),
@@ -1828,11 +1829,22 @@ def send_confirmation_email(to_email, subject, body, attachments=None, cc_email=
                     FileType("application/octet-stream"),
                     Disposition("attachment")
                 )
-                message.attachment = attachment
+                # ✅ Add multiple attachments correctly
+                message.add_attachment(attachment)
 
-    sg = SendGridAPIClient(SENDGRID_API_KEY)
-    response = sg.send(message)
-    return response.status_code
+    try:
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+
+        # Debug output
+        print("📧 SendGrid status:", response.status_code)
+        print("📧 SendGrid body:", response.body)
+        print("📧 SendGrid headers:", response.headers)
+
+        return response.status_code
+    except Exception as e:
+        print("❌ send_confirmation_email failed:", e)
+        return None
 
 
 @app.post("/api/sendmail")
