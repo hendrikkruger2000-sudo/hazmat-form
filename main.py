@@ -2020,12 +2020,13 @@ async def submit(request: Request):
 
         attachments = [pdf_path] + uploaded_paths
         try:
+            # ✅ Pass lists directly instead of comma-joined strings
             status = send_confirmation_email(
-                to_email=", ".join(recipients),  # ✅ join list into comma-separated string
+                to_email=recipients,  # list of client emails
                 subject=subject,
                 body=body,
                 attachments=attachments,
-                cc_email=", ".join(cc_list)  # ✅ join CC list into comma-separated string
+                cc_email=cc_list  # list of CC emails
             )
             print("📧 Confirmation email status:", status)
         except Exception as e:
