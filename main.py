@@ -2000,37 +2000,34 @@ async def submit(request: Request):
 
     if recipients:
         subject = f"Hazmat Collection Confirmation • {reference_number}"
-        body = f""""
+        body = f"""
         <html>
-  <body>
-    <p>Dear {collection_person},</p>
-
-    <p>Your collection has been booked successfully.</p>
-
-    <ul>
-      <li><strong>Reference:</strong> {reference_number}</li>
-      <li><strong>Collection Date:</strong> {collection_date}</li>
-      <li><strong>Company:</strong> {collection_company}</li>
-      <li><strong>Address:</strong> {collection_address}</li>
-      <li><strong>Contact:</strong> {collection_number}</li>
-      <li><strong>Email:</strong> {collection_email_raw}</li>
-    </ul>    
-    {signature_block}
-  </body>
-</html>
-"""
-
+          <body>
+            <p>Dear {collection_person},</p>
+            <p>Your collection has been booked successfully.</p>
+            <ul>
+              <li><strong>Reference:</strong> {reference_number}</li>
+              <li><strong>Collection Date:</strong> {collection_date}</li>
+              <li><strong>Company:</strong> {collection_company}</li>
+              <li><strong>Address:</strong> {collection_address}</li>
+              <li><strong>Contact:</strong> {collection_number}</li>
+              <li><strong>Email:</strong> {collection_email_raw}</li>
+            </ul>
+            {signature_block}
+          </body>
+        </html>
+        """
 
         attachments = [pdf_path] + uploaded_paths
         try:
-            # ✅ Pass full list of recipients, plus ops CC
-            send_confirmation_email(
-                to_email=", ".join(recipients),  # join list into comma-separated string
+            status = send_confirmation_email(
+                to_email=", ".join(recipients),  # ✅ join list into comma-separated string
                 subject=subject,
                 body=body,
                 attachments=attachments,
-                cc_email=", ".join(cc_list)  # join CC list if needed
+                cc_email=", ".join(cc_list)  # ✅ join CC list into comma-separated string
             )
+            print("📧 Confirmation email status:", status)
         except Exception as e:
             print("❌ Email dispatch failed:", e)
     else:
