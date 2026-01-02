@@ -1,8 +1,12 @@
-.buildozer/
-__pycache__/
+# Ignore build outputs
+*.apk
+*.exe
+*.pkg
+/build/
+/dist/
+/bin/
+/.venv/
+/__pycache__/
 *.pyc
 *.pyo
 *.db
-.bin/
-.build/
-.dist/
