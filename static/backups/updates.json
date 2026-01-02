@@ -1,1 +1,54 @@
-[]
+[
+  {
+    "id": 1,
+    "ops": "HK",
+    "hmj": "HMJ56982",
+    "haz": "HAZJNB000025",
+    "company": "GIVAUDAN",
+    "date": "2025-12-30",
+    "time": "21:38",
+    "latest_update": "delivered",
+    "document": "C:/Users/Hendrik/PycharmProjects/HazmatCollectionSystem/ref_counter.txt",
+    "client_emails": null,
+    "message_id": null
+  },
+  {
+    "id": 2,
+    "ops": "HK",
+    "hmj": "65425",
+    "haz": "65425",
+    "company": "GIVAUDAN",
+    "date": "2025-12-30",
+    "time": "21:58",
+    "latest_update": "Delivered",
+    "document": "C:/Users/Hendrik/PycharmProjects/HazmatCollectionSystem/requirment.txt",
+    "client_emails": "hendrikkruger2000@gmail.com",
+    "message_id": null
+  },
+  {
+    "id": 3,
+    "ops": "HK",
+    "hmj": "HMJ56298",
+    "haz": "HAZJNB00020",
+    "company": "GIVAUDAN",
+    "date": "2025-12-30",
+    "time": "22:08",
+    "latest_update": "delivered",
+    "document": "C:/Users/Hendrik/PycharmProjects/HazmatCollectionSystem/requirment.txt",
+    "client_emails": "hendrikkruger2000@gmail.com",
+    "message_id": null
+  },
+  {
+    "id": 4,
+    "ops": "HK",
+    "hmj": "HMJ89745",
+    "haz": "HAZJNB894874",
+    "company": "GIVAUDAN",
+    "date": "2025-12-30",
+    "time": "22:32",
+    "latest_update": "Delivered",
+    "document": "",
+    "client_emails": "hendrikkruger2000@gmail.com",
+    "message_id": "ieOAh8AOQIWPEY_rHIkIjA"
+  }
+]

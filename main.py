@@ -944,17 +944,34 @@ def ping():
 
 
 @app.get("/ops/unassigned")
-def get_unassigned():
+def ops_unassigned():
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT reference_number, collection_company, collection_address, pickup_date
-        FROM requests WHERE assigned_driver IS NULL AND status IS NOT 'Delivered'
+        SELECT id, reference_number, collection_company, collection_address, pickup_date,
+               service_type, status, timestamp
+        FROM requests
+        WHERE (assigned_driver IS NULL OR assigned_driver = '')
+          AND (status IS NULL OR status != 'Delivered')
         ORDER BY timestamp DESC
     """)
     rows = cursor.fetchall()
     conn.close()
-    return [{"hazjnb_ref": r[0], "company": r[1], "address": r[2], "pickup_date": r[3]} for r in rows]
+
+    return JSONResponse([
+        {
+            "id": r[0],
+            "hazjnb_ref": r[1],
+            "company": r[2],
+            "address": r[3],
+            "pickup_date": r[4],
+            "service_type": r[5],
+            "status": r[6],
+            "timestamp": r[7],
+            "driver": "Unassigned"
+        }
+        for r in rows
+    ])
 
 
 @app.post("/client/addresses")
@@ -1035,23 +1052,32 @@ async def get_address(address_id: int, request: Request):
     }
 
 @app.get("/ops/collections")
-def get_available_collections():
+def ops_collections():
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT reference_number, collection_company, collection_address, pickup_date
+        SELECT id, reference_number, collection_company, collection_address, pickup_date,
+               service_type, assigned_driver, status, timestamp
         FROM requests
-        WHERE assigned_driver IS NULL AND status IS NOT 'Delivered'
         ORDER BY timestamp DESC
     """)
     rows = cursor.fetchall()
     conn.close()
-    return [{
-        "hazjnb_ref": r[0],
-        "company": r[1],
-        "address": r[2],
-        "pickup_date": r[3]
-    } for r in rows]
+
+    return JSONResponse([
+        {
+            "id": r[0],
+            "hazjnb_ref": r[1],
+            "company": r[2],
+            "address": r[3],
+            "pickup_date": r[4],
+            "service_type": r[5],
+            "driver": r[6] if r[6] else "Unassigned",
+            "status": r[7],
+            "timestamp": r[8]
+        }
+        for r in rows
+    ])
 
 
 @app.get("/embed/submit", response_class=HTMLResponse)
@@ -1596,7 +1622,7 @@ async def submit_complaint(request: Request):
 
 
 
-@app.get("/ops/assigned", response_class=HTMLResponse)
+@app.get("/ops/assigned")
 def ops_assigned():
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
@@ -1610,105 +1636,19 @@ def ops_assigned():
     rows = cursor.fetchall()
     conn.close()
 
-    # Build HTML table rows
-    table_rows = ""
-    for r in rows:
-        table_rows += f"""
-        <tr>
-          <td>{r[1]}</td>
-          <td>{r[2]}</td>
-          <td>{r[3]}</td>
-          <td>{r[4]}</td>
-          <td>{r[5]}</td>
-          <td>{r[6]}</td>
-          <td>{r[7]}</td>
-        </tr>
-        """
-
-    return f"""
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-      body {{
-        margin: 0; padding: 0; font-family: 'Inter', sans-serif;
-        background: #F1F8E9; color: #333;
-      }}
-      header {{
-        background: #2E7D32; color: white; padding: 1rem 2rem;
-        display: flex; align-items: center; justify-content: space-between;
-      }}
-      header img {{ height: 60px; }}
-      nav a {{
-        color: white; margin-left: 1rem; text-decoration: none; font-weight: 500;
-      }}
-      nav a:hover {{ text-decoration: underline; }}
-      main {{ max-width: 1200px; margin: 2rem auto; padding: 1rem; }}
-      h2 {{ text-align: center; color: #2E7D32; margin-bottom: 2rem; }}
-      table {{
-        width: 100%; border-collapse: collapse; background: #fff;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-      }}
-      th, td {{
-        border: 1px solid #C8E6C9; padding: 0.75rem; text-align: left;
-      }}
-      th {{ background: #388E3C; color: white; }}
-      tr:nth-child(even) {{ background: #F9FBE7; }}
-      footer {{
-        background: #2E7D32; color: white; text-align: center;
-        padding: 1rem; font-size: 14px; line-height: 1.6;
-      }}
-    </style>
-
-    <header>
-      <img src="/static/logo.png" alt="Hazmat Global Support Services Logo">
-      <nav style="flex:1; display:flex; justify-content:flex-end; align-items:center;">
-        <a href="/">Home</a>
-        <a href="/embed/submit">Book a Collection</a>
-        <a href="/embed/track">Track Shipments</a>
-        <a href="/embed/complaint">File a Complaint</a>
-        <a href="/embed/rate">Rate Our Services</a>
-        <span id="client-nav" style="margin-left:auto; font-weight:600;"></span>
-      </nav>
-    </header>
-
-    <main>
-      <h2>Assigned Shipments</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Reference #</th>
-            <th>Service Type</th>
-            <th>Collection Company</th>
-            <th>Delivery Company</th>
-            <th>Assigned Driver</th>
-            <th>Status</th>
-            <th>Timestamp</th>
-          </tr>
-        </thead>
-        <tbody>
-          {table_rows if table_rows else '<tr><td colspan="7">No assigned shipments found.</td></tr>'}
-        </tbody>
-      </table>
-    </main>
-
-    <footer>
-      <p>&copy; 2025 Hazmat Global Support Services. All rights reserved.</p>
-    </footer>
-
-    <script>
-    document.addEventListener("DOMContentLoaded", function() {{
-      fetch("/api/me")
-        .then(res => res.json())
-        .then(data => {{
-          const navSpan = document.getElementById("client-nav");
-          if (data.name) {{
-            navSpan.innerText = data.name;
-          }} else {{
-            navSpan.innerHTML = '<a href="/embed/login">Login / Sign Up</a>';
-          }}
-        }});
-    }});
-    </script>
-    """
+    return JSONResponse([
+        {
+            "id": r[0],
+            "hazjnb_ref": r[1],
+            "service_type": r[2],
+            "collection_company": r[3],
+            "delivery_company": r[4],
+            "driver": r[5],
+            "status": r[6],
+            "timestamp": r[7]
+        }
+        for r in rows
+    ])
 
 
 @app.get("/driver/{code}")
@@ -1760,14 +1700,29 @@ def submit_update(payload: dict):
 
 
 @app.get("/ops/updates")
-def get_updates():
+def ops_updates():
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
-    cursor.execute('SELECT ops, hmj, haz, company, date, time, "update" FROM updates ORDER BY id DESC')
+    cursor.execute("""
+        SELECT ops, hmj, haz, company, date, time, "update"
+        FROM updates
+        ORDER BY id DESC
+    """)
     rows = cursor.fetchall()
     conn.close()
-    return [{"ops": r[0], "hmj": r[1], "haz": r[2], "company": r[3], "date": r[4], "time": r[5], "update": r[6]} for r
-            in rows]
+
+    return JSONResponse([
+        {
+            "ops": r[0],
+            "hmj": r[1],
+            "haz": r[2],
+            "company": r[3],
+            "date": r[4],
+            "time": r[5],
+            "update": r[6]
+        }
+        for r in rows
+    ])
 
 
 @app.post("/ops/completed")
@@ -1791,14 +1746,29 @@ def submit_completed(payload: dict):
 
 
 @app.get("/ops/completed")
-def get_completed():
+def ops_completed():
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT ops, company, delivery_date, time, signed_by, document, pod FROM completed ORDER BY id DESC")
+    cursor.execute("""
+        SELECT ops, company, delivery_date, time, signed_by, document, pod
+        FROM completed
+        ORDER BY id DESC
+    """)
     rows = cursor.fetchall()
     conn.close()
-    return [{"ops": r[0], "company": r[1], "delivery_date": r[2], "time": r[3], "signed_by": r[4], "document": r[5],
-             "pod": r[6]} for r in rows]
+
+    return JSONResponse([
+        {
+            "ops": r[0],
+            "company": r[1],
+            "delivery_date": r[2],
+            "time": r[3],
+            "signed_by": r[4],
+            "document": r[5],
+            "pod": r[6]
+        }
+        for r in rows
+    ])
 
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 

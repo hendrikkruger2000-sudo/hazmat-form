@@ -42,8 +42,8 @@ class TablePoller(QObject):
         self._pending = set()
 
     def poll_all(self):
-        self._get_json("https://hazmat-collection.onrender.com/ops/collections", self._on_collections)
-        self._get_json("https://hazmat-collection.onrender.com/ops/assigned", self._on_assigned)
+        self._get_json("https://hazmat-collection.onrender.com/ops/unassigned.json", self._on_collections)
+        self._get_json("https://hazmat-collection.onrender.com/ops/assigned.json", self._on_assigned)
         self._get_json("https://hazmat-collection.onrender.com/ops/completed", self._on_completed)
 
     def _get_json(self, url: str, callback):
@@ -500,7 +500,7 @@ class DashboardWindow(QMainWindow):
 
         def refresh_collections_tab(self):
             try:
-                response = requests.get("https://hazmat-collection.onrender.com/ops/collections")
+                response = requests.get("https://hazmat-collection.onrender.com/ops/collections", timeout=10)
                 if response.status_code == 200:
                     data = response.json()
                     assigned = [item for item in data if item.get("driver") and item["driver"] != "Unassigned"]
@@ -518,7 +518,7 @@ class DashboardWindow(QMainWindow):
 
         def refresh_deliveries_tab(self):
             try:
-                response = requests.get("https://hazmat-collection.onrender.com/ops/assigned")
+                response = requests.get("https://hazmat-collection.onrender.com/ops/assigned.json", timeout=10)
                 if response.status_code == 200:
                     deliveries = response.json()
                     self.deliveries_table.setRowCount(len(deliveries))
@@ -533,7 +533,7 @@ class DashboardWindow(QMainWindow):
 
         def refresh_updates_tab(self):
             try:
-                response = requests.get("https://hazmat-collection.onrender.com/ops/updates")
+                response = requests.get("https://hazmat-collection.onrender.com/ops/updates", timeout=10)
                 if response.status_code == 200:
                     updates = response.json()
                     self.update_table.setRowCount(len(updates))
@@ -553,7 +553,7 @@ class DashboardWindow(QMainWindow):
 
         def refresh_completed_tab(self):
             try:
-                response = requests.get("https://hazmat-collection.onrender.com/ops/completed")
+                response = requests.get("https://hazmat-collection.onrender.com/ops/completed", timeout=10)
                 if response.status_code == 200:
                     completed = response.json()
                     self.completed_table.setRowCount(len(completed))
