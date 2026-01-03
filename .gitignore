@@ -1,12 +1,33 @@
-# Ignore build outputs
-*.apk
-*.exe
-*.pkg
-/build/
-/dist/
-/bin/
-/.venv/
-/__pycache__/
-*.pyc
+# Python
+__pycache__/
+*.py[cod]
 *.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Buildozer / Android build artifacts
+.buildozer/
+*.apk
+*.aab
+*.log
+
+# IDE / Editor configs
+.idea/
+.vscode/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# SQLite databases (if you don’t want to commit local test DBs)
+*.sqlite3
 *.db
+
+# Environment variables
+.env
