@@ -1,8 +1,27 @@
+# Core framework
 fastapi
 uvicorn
-qrcode[pil]
-reportlab
-jinja2
-python-multipart
-python-dotenv
+
+# HTTP requests
+requests
+
+# Email (SendGrid)
 sendgrid
+
+# PDF generation
+reportlab
+
+# Geocoding
+geopy
+
+# Database driver (SQLite is built‑in, but SQLAlchemy is optional if you expand later)
+# sqlite3 is part of Python stdlib, no need to install separately
+
+# CORS middleware
+python-multipart
+
+# Optional: if you want Google Maps fallback geocoding
+googlemaps
+
+# For environment variables
+python-dotenv
