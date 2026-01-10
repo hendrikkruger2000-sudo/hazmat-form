@@ -185,6 +185,7 @@ def init_db():
         cursor.execute("""CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             hazjnb_ref TEXT,
+            company TEXT,
             reference_number TEXT,
             service_type TEXT,
             collection_company TEXT,
