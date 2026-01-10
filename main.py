@@ -186,6 +186,8 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             hazjnb_ref TEXT,
             company TEXT,
+            delivery_date TEXT,
+            notes TEXT,
             reference_number TEXT,
             service_type TEXT,
             collection_company TEXT,
