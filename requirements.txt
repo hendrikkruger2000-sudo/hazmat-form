@@ -1,27 +1,19 @@
-# Core framework
-fastapi
-uvicorn
+fastapi==0.115.0
+uvicorn==0.32.0
 
-# HTTP requests
-requests
+# Database
+sqlite3-binary==0.0.1   # (sqlite3 is built-in with Python, but some deploys want a stub)
 
-# Email (SendGrid)
-sendgrid
+# QR code generation
+qrcode==7.4.2
+Pillow==10.4.0           # imaging backend for qrcode
 
 # PDF generation
-reportlab
+reportlab==4.2.5
 
-# Geocoding
-geopy
+# Email + SendGrid
+sendgrid==6.11.0
+python-dotenv==1.0.1
 
-# Database driver (SQLite is built‑in, but SQLAlchemy is optional if you expand later)
-# sqlite3 is part of Python stdlib, no need to install separately
-
-# CORS middleware
-python-multipart
-
-# Optional: if you want Google Maps fallback geocoding
-googlemaps
-
-# For environment variables
-python-dotenv
+# HTTP requests for geocoding
+requests==2.32.3
