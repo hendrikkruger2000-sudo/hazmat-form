@@ -1041,7 +1041,7 @@ class AssignPayload(BaseModel):
     driver_code: str
 
 
-@app.post("/assigned")
+@app.post("/ops/assigned")
 def assign_driver(payload: AssignPayload):
     try:
         conn = sqlite3.connect("hazmat.db")
