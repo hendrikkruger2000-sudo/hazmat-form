@@ -1,8 +1,6 @@
 fastapi
 uvicorn
 
-# Database
-sqlite3-binary   # (sqlite3 is built-in with Python, but some deploys want a stub)
 
 # QR code generation
 qrcode
