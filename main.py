@@ -187,11 +187,14 @@ seed_places()
 # -----------------------------
 # Models
 # -----------------------------
+from pydantic import BaseModel, Field
+from typing import Optional
+
 class SubmitPayload(BaseModel):
     hazjnb_ref: str
     hmj_ref: Optional[str] = None
-    type: str = Field(regex="^(local|import|export)$")
-    branch: str = Field(regex="^(PLZ|CPT|JNB|KZN)$")
+    type: str = Field(pattern="^(local|import|export)$")
+    branch: str = Field(pattern="^(PLZ|CPT|JNB|KZN)$")
     company: str
     ops: str
     pickup_address: Optional[str] = None
