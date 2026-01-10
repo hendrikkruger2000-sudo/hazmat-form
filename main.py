@@ -160,7 +160,7 @@ def init_db():
             time TEXT,
             "update" TEXT,
             latest_update TEXT,
-            document TEXT
+            document TEXT   -- ✅ add this column
         );""")
 
         cursor.execute("""CREATE TABLE IF NOT EXISTS clients (
