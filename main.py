@@ -146,7 +146,7 @@ def init_db():
     cursor = conn.cursor()
 
     try:
-        # --- Create tables (full schema) ---
+        # --- Create all required tables ---
         cursor.execute("""CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             reference_number TEXT,
@@ -236,34 +236,24 @@ def init_db():
         conn.commit()
         print("✅ All tables created or verified")
 
-        # --- Safe restore helper (keeps connection open) ---
+        # --- Safe restore helper ---
         def restore_table(json_path, table_name):
             if not os.path.exists(json_path):
-                print(f"ℹ️ No backup found for {table_name}")
                 return
-
-            try:
-                with open(json_path) as f:
-                    data = json.load(f)
-                # Get actual columns from table
-                cols = [c[1] for c in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()]
-                inserted = 0
-                for row in data:
-                    filtered = {k: v for k, v in row.items() if k in cols}
-                    if not filtered:
-                        continue
+            with open(json_path) as f:
+                data = json.load(f)
+            cols = [c[1] for c in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()]
+            for row in data:
+                filtered = {k: v for k, v in row.items() if k in cols}
+                if filtered:
                     placeholders = ",".join(["?"] * len(filtered))
                     cursor.execute(
                         f"INSERT INTO {table_name} ({','.join(filtered.keys())}) VALUES ({placeholders})",
                         list(filtered.values())
                     )
-                    inserted += 1
-                conn.commit()
-                print(f"✅ Restored {table_name} from {json_path} ({inserted} rows)")
-            except Exception as e:
-                print(f"⚠️ Restore failed for {table_name}: {e}")
+            conn.commit()
+            print(f"✅ Restored {table_name} from {json_path}")
 
-        # --- Restore backups without closing the connection prematurely ---
         restore_table("static/backups/requests.json", "requests")
         restore_table("static/backups/updates.json", "updates")
         restore_table("static/backups/completed.json", "completed")
