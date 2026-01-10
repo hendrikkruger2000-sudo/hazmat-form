@@ -155,6 +155,17 @@ def init_db():
             company TEXT,
             date TEXT,
             time TEXT,
+            "update" TEXT,
+            latest_update TEXT   -- add this column
+        );""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ops TEXT,
+            hmj TEXT,
+            haz TEXT,
+            company TEXT,
+            date TEXT,
+            time TEXT,
             "update" TEXT
         );""")
         cursor.execute("""CREATE TABLE IF NOT EXISTS clients (
