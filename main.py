@@ -141,10 +141,12 @@ def centroid_for_city(city: str):
     return coords
 
 def init_db():
+    os.makedirs("static/backups", exist_ok=True)
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
+
     try:
-        # Requests table
+        # --- Create tables (full schema) ---
         cursor.execute("""CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             reference_number TEXT,
@@ -180,7 +182,6 @@ def init_db():
             address_flag TEXT
         );""")
 
-        # Updates table (include latest_update if backups have it)
         cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ops TEXT,
@@ -193,7 +194,6 @@ def init_db():
             latest_update TEXT
         );""")
 
-        # Completed table
         cursor.execute("""CREATE TABLE IF NOT EXISTS completed (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ops TEXT,
@@ -205,7 +205,6 @@ def init_db():
             pod TEXT
         );""")
 
-        # Scan log
         cursor.execute("""CREATE TABLE IF NOT EXISTS scan_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             reference_number TEXT,
@@ -214,7 +213,6 @@ def init_db():
             event TEXT
         );""")
 
-        # Clients
         cursor.execute("""CREATE TABLE IF NOT EXISTS clients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE,
@@ -222,7 +220,6 @@ def init_db():
             name TEXT
         );""")
 
-        # Saved addresses
         cursor.execute("""CREATE TABLE IF NOT EXISTS saved_addresses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             client_id INTEGER,
@@ -239,50 +236,43 @@ def init_db():
         conn.commit()
         print("✅ All tables created or verified")
 
-        # Restore backups safely (ignore extra fields)
+        # --- Safe restore helper (keeps connection open) ---
         def restore_table(json_path, table_name):
-            if os.path.exists(json_path):
+            if not os.path.exists(json_path):
+                print(f"ℹ️ No backup found for {table_name}")
+                return
+
+            try:
                 with open(json_path) as f:
                     data = json.load(f)
-                    for row in data:
-                        # Only insert keys that exist in the table
-                        cols = [c[1] for c in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()]
-                        filtered = {k: v for k, v in row.items() if k in cols}
-                        cursor.execute(
-                            f"INSERT INTO {table_name} ({','.join(filtered.keys())}) VALUES ({','.join(['?']*len(filtered))})",
-                            list(filtered.values())
-                        )
-                print(f"✅ Restored {table_name} from {json_path}")
+                # Get actual columns from table
+                cols = [c[1] for c in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()]
+                inserted = 0
+                for row in data:
+                    filtered = {k: v for k, v in row.items() if k in cols}
+                    if not filtered:
+                        continue
+                    placeholders = ",".join(["?"] * len(filtered))
+                    cursor.execute(
+                        f"INSERT INTO {table_name} ({','.join(filtered.keys())}) VALUES ({placeholders})",
+                        list(filtered.values())
+                    )
+                    inserted += 1
+                conn.commit()
+                print(f"✅ Restored {table_name} from {json_path} ({inserted} rows)")
+            except Exception as e:
+                print(f"⚠️ Restore failed for {table_name}: {e}")
 
+        # --- Restore backups without closing the connection prematurely ---
         restore_table("static/backups/requests.json", "requests")
         restore_table("static/backups/updates.json", "updates")
         restore_table("static/backups/completed.json", "completed")
 
-        conn.commit()
+        print("✅ hazmat.db initialized and restored")
     except Exception as e:
         print("❌ init_db() failed:", e)
     finally:
         conn.close()
-
-        def restore_table(json_path, table_name):
-            if os.path.exists(json_path):
-                with open(json_path) as f:
-                    data = json.load(f)
-                    for row in data:
-                        cursor.execute(f"""
-                            INSERT INTO {table_name} ({','.join(row.keys())})
-                            VALUES ({','.join(['?'] * len(row))})
-                        """, list(row.values()))
-                print(f"✅ Restored {table_name} from {json_path}")
-
-        restore_table("static/backups/requests.json", "requests")
-        restore_table("static/backups/updates.json", "updates")
-        restore_table("static/backups/completed.json", "completed")
-
-        conn.commit()
-        print("✅ hazmat.db initialized and restored")
-
-init_db()
 
 def get_next_reference_number():
     counter_path = "static/backups/ref_counter.txt"
