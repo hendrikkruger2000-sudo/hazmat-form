@@ -149,7 +149,7 @@ def init_db():
     cursor = conn.cursor()
 
     try:
-        # Create tables
+        # Updates table with latest_update column included
         cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ops TEXT,
@@ -158,14 +158,18 @@ def init_db():
             company TEXT,
             date TEXT,
             time TEXT,
-            "update" TEXT
+            "update" TEXT,
+            latest_update TEXT
         );""")
+
         cursor.execute("""CREATE TABLE IF NOT EXISTS clients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE,
             password TEXT,
             name TEXT
         );""")
+        print("✅ clients table created")
+
         cursor.execute("""CREATE TABLE IF NOT EXISTS completed (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ops TEXT,
@@ -205,25 +209,7 @@ def init_db():
             driver_id TEXT,
             timestamp TEXT
         );""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS clients (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE,
-            password TEXT,
-            name TEXT
-        );""")
-        print("✅ clients table created")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ops TEXT,
-            hmj TEXT,
-            haz TEXT,
-            company TEXT,
-            date TEXT,
-            time TEXT,
-            "update" TEXT,
-            latest_update TEXT   -- ✅ added
-        );""")
-        print("Latest Update table created")
+
         cursor.execute("""CREATE TABLE IF NOT EXISTS saved_addresses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             client_id INTEGER,
@@ -246,10 +232,14 @@ def init_db():
                 with open(json_path) as f:
                     data = json.load(f)
                     for row in data:
-                        cursor.execute(f"""
-                            INSERT INTO {table_name} ({','.join(row.keys())})
-                            VALUES ({','.join(['?'] * len(row))})
-                        """, list(row.values()))
+                        # filter unknown keys
+                        cols = [c[1] for c in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()]
+                        filtered = {k: v for k, v in row.items() if k in cols}
+                        if filtered:
+                            cursor.execute(
+                                f"INSERT INTO {table_name} ({','.join(filtered.keys())}) VALUES ({','.join(['?']*len(filtered))})",
+                                list(filtered.values())
+                            )
                 print(f"✅ Restored {table_name} from {json_path}")
 
         restore_table("static/backups/requests.json", "requests")
