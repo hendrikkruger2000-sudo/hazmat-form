@@ -1031,50 +1031,38 @@ def ops_unassigned():
         }
         for r in rows
     ])
-from fastapi import HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
 import sqlite3
-from datetime import datetime
 
-class AssignPayload(BaseModel):
-    hazjnb_ref: str
-    driver_code: str
+app = FastAPI()
 
-
-@app.post("/ops/assigned")
-def assign_driver(payload: AssignPayload):
+@app.get("/ops/assigned")
+def get_assigned_shipments():
     try:
         conn = sqlite3.connect("hazmat.db")
         cursor = conn.cursor()
-
-        # Check shipment exists
-        cursor.execute("SELECT id, status FROM requests WHERE hazjnb_ref = ?", (payload.hazjnb_ref,))
-        row = cursor.fetchone()
-        if not row:
-            conn.close()
-            raise HTTPException(status_code=404, detail="Shipment not found")
-
-        shipment_id, current_status = row
-
-        # Update driver assignment
-        new_status = "Driver Assigned" if not current_status or current_status == "Pending" else current_status
         cursor.execute("""
-            UPDATE requests
-            SET assigned_driver = ?, status = ?, updated_at = ?
-            WHERE id = ?
-        """, (payload.driver_code, new_status, datetime.now().isoformat(), shipment_id))
-        conn.commit()
+            SELECT id, hazjnb_ref, company, delivery_date, assigned_driver, status, notes
+            FROM requests
+            WHERE assigned_driver IS NOT NULL
+            ORDER BY delivery_date DESC
+        """)
+        rows = cursor.fetchall()
         conn.close()
 
-        return {
-            "message": f"Driver {payload.driver_code} assigned to {payload.hazjnb_ref}",
-            "hazjnb_ref": payload.hazjnb_ref,
-            "driver_code": payload.driver_code,
-            "status": new_status
-        }
+        shipments = []
+        for r in rows:
+            shipments.append({
+                "id": r[0],
+                "hazjnb_ref": r[1],
+                "company": r[2],
+                "delivery_date": r[3],
+                "driver": r[4],
+                "status": r[5],
+                "notes": r[6]
+            })
+        return shipments
 
-    except HTTPException as e:
-        raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
