@@ -188,6 +188,7 @@ def init_db():
             company TEXT,
             delivery_date TEXT,
             notes TEXT,
+            collection_email TEXT,
             reference_number TEXT,
             service_type TEXT,
             collection_company TEXT,
