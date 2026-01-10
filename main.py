@@ -159,7 +159,8 @@ def init_db():
             date TEXT,
             time TEXT,
             "update" TEXT,
-            latest_update TEXT
+            latest_update TEXT,
+            document TEXT
         );""")
 
         cursor.execute("""CREATE TABLE IF NOT EXISTS clients (
