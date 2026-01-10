@@ -1,19 +1,19 @@
-fastapi==0.115.0
-uvicorn==0.32.0
+fastapi
+uvicorn
 
 # Database
-sqlite3-binary==0.0.1   # (sqlite3 is built-in with Python, but some deploys want a stub)
+sqlite3-binary   # (sqlite3 is built-in with Python, but some deploys want a stub)
 
 # QR code generation
-qrcode==7.4.2
-Pillow==10.4.0           # imaging backend for qrcode
+qrcode
+Pillow          # imaging backend for qrcode
 
 # PDF generation
-reportlab==4.2.5
+reportlab
 
 # Email + SendGrid
-sendgrid==6.11.0
-python-dotenv==1.0.1
+sendgrid
+python-dotenv
 
 # HTTP requests for geocoding
-requests==2.32.3
+requests
