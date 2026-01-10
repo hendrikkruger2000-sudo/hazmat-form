@@ -212,6 +212,18 @@ def init_db():
             name TEXT
         );""")
         print("✅ clients table created")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ops TEXT,
+            hmj TEXT,
+            haz TEXT,
+            company TEXT,
+            date TEXT,
+            time TEXT,
+            "update" TEXT,
+            latest_update TEXT   -- ✅ added
+        );""")
+        print("Latest Update table created")
         cursor.execute("""CREATE TABLE IF NOT EXISTS saved_addresses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             client_id INTEGER,
