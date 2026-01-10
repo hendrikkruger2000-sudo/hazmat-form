@@ -1031,6 +1031,53 @@ def ops_unassigned():
         }
         for r in rows
     ])
+from fastapi import HTTPException
+from pydantic import BaseModel
+import sqlite3
+from datetime import datetime
+
+class AssignPayload(BaseModel):
+    hazjnb_ref: str
+    driver_code: str
+
+
+@app.post("/assign")
+def assign_driver(payload: AssignPayload):
+    try:
+        conn = sqlite3.connect("hazmat.db")
+        cursor = conn.cursor()
+
+        # Check shipment exists
+        cursor.execute("SELECT id, status FROM requests WHERE hazjnb_ref = ?", (payload.hazjnb_ref,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Shipment not found")
+
+        shipment_id, current_status = row
+
+        # Update driver assignment
+        new_status = "Driver Assigned" if not current_status or current_status == "Pending" else current_status
+        cursor.execute("""
+            UPDATE requests
+            SET assigned_driver = ?, status = ?, updated_at = ?
+            WHERE id = ?
+        """, (payload.driver_code, new_status, datetime.now().isoformat(), shipment_id))
+        conn.commit()
+        conn.close()
+
+        return {
+            "message": f"Driver {payload.driver_code} assigned to {payload.hazjnb_ref}",
+            "hazjnb_ref": payload.hazjnb_ref,
+            "driver_code": payload.driver_code,
+            "status": new_status
+        }
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/client/addresses")
 async def save_address(request: Request, payload: dict):
