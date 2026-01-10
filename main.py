@@ -141,12 +141,46 @@ def centroid_for_city(city: str):
     return coords
 
 def init_db():
-    if os.path.exists("hazmat.db"):
-        print("✅ hazmat.db already exists")
-        return
     conn = sqlite3.connect("hazmat.db")
     cursor = conn.cursor()
     try:
+        # Requests table
+        cursor.execute("""CREATE TABLE IF NOT EXISTS requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reference_number TEXT,
+            service_type TEXT,
+            collection_company TEXT,
+            collection_address TEXT,
+            collection_person TEXT,
+            collection_number TEXT,
+            collection_email TEXT,
+            collection_region TEXT,
+            delivery_company TEXT,
+            delivery_address TEXT,
+            delivery_person TEXT,
+            delivery_number TEXT,
+            delivery_email TEXT,
+            delivery_region TEXT,
+            client_reference TEXT,
+            pickup_date TEXT,
+            inco_terms TEXT,
+            client_notes TEXT,
+            pdf_path TEXT,
+            timestamp TEXT,
+            assigned_driver TEXT,
+            status TEXT,
+            quoted INTEGER,
+            sales_rep TEXT,
+            pieces_json TEXT,
+            collection_lat REAL,
+            collection_lng REAL,
+            delivery_lat REAL,
+            delivery_lng REAL,
+            geocode_confidence REAL,
+            address_flag TEXT
+        );""")
+
+        # Updates table (include latest_update if backups have it)
         cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ops TEXT,
@@ -156,24 +190,10 @@ def init_db():
             date TEXT,
             time TEXT,
             "update" TEXT,
-            latest_update TEXT   -- add this column
+            latest_update TEXT
         );""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS updates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ops TEXT,
-            hmj TEXT,
-            haz TEXT,
-            company TEXT,
-            date TEXT,
-            time TEXT,
-            "update" TEXT
-        );""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS clients (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE,
-            password TEXT,
-            name TEXT
-        );""")
+
+        # Completed table
         cursor.execute("""CREATE TABLE IF NOT EXISTS completed (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ops TEXT,
@@ -184,43 +204,25 @@ def init_db():
             document TEXT,
             pod TEXT
         );""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            reference_number TEXT,
-            service_type TEXT,
-            collection_company TEXT,
-            collection_address TEXT,
-            collection_person TEXT,
-            collection_number TEXT,
-            delivery_company TEXT,
-            delivery_address TEXT,
-            delivery_person TEXT,
-            delivery_number TEXT,
-            client_reference TEXT,
-            pickup_date TEXT,
-            inco_terms TEXT,
-            client_notes TEXT,
-            pdf_path TEXT,
-            timestamp TEXT,
-            assigned_driver TEXT,
-            status TEXT,
-            collection_email TEXT,
-            delivery_email TEXT,
-            collection_region TEXT,
-            delivery_region TEXT,
-            collection_lat REAL,
-            collection_lng REAL,
-            delivery_lat REAL,
-            delivery_lng REAL,
-            geocode_confidence REAL,
-            address_flag TEXT
-        );""")
+
+        # Scan log
         cursor.execute("""CREATE TABLE IF NOT EXISTS scan_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             reference_number TEXT,
             driver_id TEXT,
-            timestamp TEXT
+            timestamp TEXT,
+            event TEXT
         );""")
+
+        # Clients
+        cursor.execute("""CREATE TABLE IF NOT EXISTS clients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE,
+            password TEXT,
+            name TEXT
+        );""")
+
+        # Saved addresses
         cursor.execute("""CREATE TABLE IF NOT EXISTS saved_addresses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             client_id INTEGER,
@@ -233,7 +235,34 @@ def init_db():
             email TEXT,
             FOREIGN KEY (client_id) REFERENCES clients(id)
         );""")
-        print("✅ Tables created")
+
+        conn.commit()
+        print("✅ All tables created or verified")
+
+        # Restore backups safely (ignore extra fields)
+        def restore_table(json_path, table_name):
+            if os.path.exists(json_path):
+                with open(json_path) as f:
+                    data = json.load(f)
+                    for row in data:
+                        # Only insert keys that exist in the table
+                        cols = [c[1] for c in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()]
+                        filtered = {k: v for k, v in row.items() if k in cols}
+                        cursor.execute(
+                            f"INSERT INTO {table_name} ({','.join(filtered.keys())}) VALUES ({','.join(['?']*len(filtered))})",
+                            list(filtered.values())
+                        )
+                print(f"✅ Restored {table_name} from {json_path}")
+
+        restore_table("static/backups/requests.json", "requests")
+        restore_table("static/backups/updates.json", "updates")
+        restore_table("static/backups/completed.json", "completed")
+
+        conn.commit()
+    except Exception as e:
+        print("❌ init_db() failed:", e)
+    finally:
+        conn.close()
 
         def restore_table(json_path, table_name):
             if os.path.exists(json_path):
@@ -252,10 +281,6 @@ def init_db():
 
         conn.commit()
         print("✅ hazmat.db initialized and restored")
-    except Exception as e:
-        print("❌ init_db() failed:", e)
-    finally:
-        conn.close()
 
 init_db()
 
