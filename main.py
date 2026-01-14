@@ -183,31 +183,46 @@ def init_db():
         );""")
 
         cursor.execute("""CREATE TABLE IF NOT EXISTS requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            hazjnb_ref TEXT,
-            company TEXT,
-            delivery_date TEXT,
-            notes TEXT,
-            collection_email TEXT,
-            reference_number TEXT,
-            service_type TEXT,
-            collection_company TEXT,
-            collection_address TEXT,
-            collection_person TEXT,
-            collection_number TEXT,
-            delivery_company TEXT,
-            delivery_address TEXT,
-            delivery_person TEXT,
-            delivery_number TEXT,
-            client_reference TEXT,
-            pickup_date TEXT,
-            inco_terms TEXT,
-            client_notes TEXT,
-            pdf_path TEXT,
-            timestamp TEXT,
-            assigned_driver TEXT,
-            status TEXT
-        );""")
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                hazjnb_ref TEXT UNIQUE,
+                hmj_ref TEXT,
+                shipment_type TEXT,
+                inco_terms TEXT,
+                quoted INTEGER DEFAULT 0,
+                sales_rep TEXT,
+                collection_date TEXT,
+
+                collection_company TEXT,
+                collection_address TEXT,
+                collection_region TEXT,
+                collection_contact_name TEXT,
+                collection_contact_number TEXT,
+                collection_email TEXT,
+
+                delivery_company TEXT,
+                delivery_address TEXT,
+                delivery_region TEXT,
+                delivery_contact_name TEXT,
+                delivery_contact_number TEXT,
+                delivery_email TEXT,
+
+                pieces_json TEXT,
+                shipper_notes TEXT,
+                shipment_docs TEXT,
+
+                assigned_driver TEXT,
+                status TEXT DEFAULT 'Pending',
+
+                delivery_date TEXT,
+                time TEXT,
+                signed_by TEXT,
+                document TEXT,
+                pod TEXT,
+                invoice TEXT,
+
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT
+            );""")
 
         cursor.execute("""CREATE TABLE IF NOT EXISTS scan_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
